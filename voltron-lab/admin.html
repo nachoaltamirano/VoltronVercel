@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voltron Lab | Panel de Administración</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/admin.css">
+</head>
+<body class="admin-body">
+    <!-- Pantalla de login -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-card">
+            <div class="login-header">
+                <span class="logo-icon">VOLTRON</span>
+                <span class="logo-text">LAB</span>
+                <h2>Panel de Administración</h2>
+            </div>
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label for="adminEmail">Email</label>
+                    <input type="email" id="adminEmail" required placeholder="admin@voltronlab.com">
+                </div>
+                <div class="form-group">
+                    <label for="adminPassword">Contraseña</label>
+                    <input type="password" id="adminPassword" required placeholder="••••••••">
+                </div>
+                <p id="loginError" class="error-message hidden"></p>
+                <button type="submit" class="btn btn-primary btn-full">Iniciar sesión</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Panel principal (oculto hasta login) -->
+    <div id="adminPanel" class="admin-panel hidden">
+        <header class="admin-header">
+            <div class="admin-header-content">
+                <a href="index.html" class="logo">
+                    <span class="logo-icon">VOLTRON</span>
+                    <span class="logo-text">LAB</span>
+                </a>
+                <div class="admin-actions">
+                    <span class="admin-user" id="adminUserEmail"></span>
+                    <button id="logoutBtn" class="btn btn-secondary btn-sm">Cerrar sesión</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="admin-main">
+            <div class="container">
+                <h1 class="admin-title">Gestión de Turnos</h1>
+
+                <!-- Crear nuevo turno -->
+                <section class="admin-section">
+                    <h2>Crear nuevo turno</h2>
+                    <form id="createSlotForm" class="create-slot-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="newSlotDate">Fecha</label>
+                                <input type="date" id="newSlotDate" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="newSlotTime">Hora</label>
+                                <input type="time" id="newSlotTime" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Agregar turno</button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- Vista de turnos -->
+                <section class="admin-section">
+                    <div class="tabs">
+                        <button class="tab active" data-tab="available">Turnos disponibles</button>
+                        <button class="tab" data-tab="booked">Turnos ocupados</button>
+                        <button class="tab" data-tab="appointments">Reservas</button>
+                    </div>
+
+                    <div id="availableTab" class="tab-content active">
+                        <div id="availableSlotsList" class="slots-list"></div>
+                    </div>
+                    <div id="bookedTab" class="tab-content">
+                        <div id="bookedSlotsList" class="slots-list"></div>
+                    </div>
+                    <div id="appointmentsTab" class="tab-content">
+                        <div id="appointmentsList" class="appointments-list"></div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast -->
+    <div id="adminToast" class="toast hidden">
+        <div class="toast-content">
+            <span class="toast-icon">✓</span>
+            <p id="adminToastMessage"></p>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/firebase-service.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+</html>
