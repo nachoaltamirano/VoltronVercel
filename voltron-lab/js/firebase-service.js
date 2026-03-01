@@ -103,30 +103,51 @@ async function getAvailableSlotsByDate() {
 }
 
 /**
+ * Construye los mapas desde snapshots de Firestore (evita caché)
+ */
+function buildMapsFromSnapshots(availableSnapshot, bookedSnapshot) {
+    const availableMap = {};
+    availableSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (!availableMap[data.date]) availableMap[data.date] = [];
+        availableMap[data.date].push(data.time);
+    });
+    const bookedMap = {};
+    bookedSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const key = `${data.date}_${data.time.replace(':', '')}`;
+        bookedMap[key] = true;
+    });
+    return { availableMap, bookedMap };
+}
+
+/**
  * Suscripción en tiempo real a cambios en turnos disponibles y ocupados.
- * El callback se ejecuta cada vez que hay cambios en Firestore.
- * Retorna una función para cancelar la suscripción.
- * @param {function} callback - Recibe (availableMap, bookedMap) cuando hay cambios
+ * Usa los datos del snapshot directamente para evitar caché desactualizado.
  */
 function subscribeToSlotsRealtime(callback) {
     if (!availableSlotsRef || !bookedSlotsRef) return () => {};
 
-    let debounceTimer = null;
-    const buildMaps = () => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-            Promise.all([
-                getAvailableSlotsByDate(),
-                getBookedSlotsMap()
-            ]).then(([availableMap, bookedMap]) => callback(availableMap, bookedMap));
-        }, 150);
+    let lastAvailable = null;
+    let lastBooked = null;
+
+    const updateFromSnapshots = () => {
+        if (lastAvailable && lastBooked) {
+            const { availableMap, bookedMap } = buildMapsFromSnapshots(lastAvailable, lastBooked);
+            callback(availableMap, bookedMap);
+        }
     };
 
-    const unsubAvailable = availableSlotsRef.onSnapshot(() => buildMaps());
-    const unsubBooked = bookedSlotsRef.onSnapshot(() => buildMaps());
+    const unsubAvailable = availableSlotsRef.onSnapshot((snapshot) => {
+        lastAvailable = snapshot;
+        updateFromSnapshots();
+    });
+    const unsubBooked = bookedSlotsRef.onSnapshot((snapshot) => {
+        lastBooked = snapshot;
+        updateFromSnapshots();
+    });
 
     return () => {
-        clearTimeout(debounceTimer);
         unsubAvailable();
         unsubBooked();
     };

@@ -30,22 +30,11 @@
     margin-bottom: 2rem;
 }
 
-.login-header .logo-icon,
-.login-header .logo-text {
+.login-header .logo-img {
+    height: 56px;
+    width: auto;
     display: block;
-}
-
-.login-header .logo-icon {
-    font-family: var(--font-mono);
-    font-size: 0.9rem;
-    color: var(--accent);
-    margin-bottom: 0.25rem;
-}
-
-.login-header .logo-text {
-    font-size: 1.5rem;
-    letter-spacing: 0.2em;
-    margin-bottom: 1rem;
+    margin: 0 auto 1rem;
 }
 
 .login-header h2 {
@@ -110,6 +99,10 @@
 .admin-header .logo {
     text-decoration: none;
     color: var(--text-primary);
+}
+
+.admin-header .logo .logo-img {
+    height: 32px;
 }
 
 .admin-actions {
@@ -282,4 +275,140 @@
     text-align: center;
     padding: 2rem;
     color: var(--text-muted);
+}
+
+/* ========== Responsive Admin ========== */
+@media (max-width: 768px) {
+    .login-screen {
+        padding: 1rem;
+    }
+
+    .login-card {
+        padding: 1.5rem;
+    }
+
+    .login-header .logo-img {
+        height: 48px;
+    }
+
+    .admin-header-content {
+        padding: 0.75rem 1rem;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .admin-header .logo .logo-img {
+        height: 28px;
+    }
+
+    .admin-actions {
+        width: 100%;
+        justify-content: space-between;
+        order: 2;
+    }
+
+    .admin-user {
+        font-size: 0.8rem;
+        max-width: 120px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .admin-main {
+        padding: 1.5rem 0;
+    }
+
+    .admin-title {
+        font-size: 1.4rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .admin-section {
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .create-slot-form .form-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .create-slot-form .form-group {
+        min-width: 100%;
+    }
+
+    .create-slot-form .btn {
+        width: 100%;
+    }
+
+    .tabs {
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+
+    .tab {
+        padding: 0.5rem 0.9rem;
+        font-size: 0.85rem;
+    }
+
+    .slot-item,
+    .appointment-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+        padding: 0.75rem;
+    }
+
+    .slot-item-actions,
+    .appointment-item-actions {
+        flex-wrap: wrap;
+    }
+
+    .slot-item .btn,
+    .appointment-item .btn {
+        flex: 1;
+        min-width: 120px;
+    }
+}
+
+@media (max-width: 480px) {
+    .login-card {
+        padding: 1.25rem;
+    }
+
+    .login-header .logo-img {
+        height: 40px;
+    }
+
+    .admin-header-content {
+        padding: 0.6rem 0.75rem;
+    }
+
+    .admin-header .logo .logo-img {
+        height: 24px;
+    }
+
+    .admin-user {
+        max-width: 90px;
+    }
+
+    .btn-sm {
+        padding: 0.4rem 0.75rem;
+        font-size: 0.8rem;
+    }
+
+    .tab {
+        padding: 0.45rem 0.75rem;
+        font-size: 0.8rem;
+    }
+
+    .slot-item-info,
+    .appointment-item-info {
+        font-size: 0.9rem;
+    }
+
+    .slot-item .btn,
+    .appointment-item .btn {
+        min-width: 100%;
+    }
 }

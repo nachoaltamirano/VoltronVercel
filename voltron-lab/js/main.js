@@ -8,6 +8,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initCalendar();
     initBooking();
 
+    // Configurar enlace de WhatsApp desde config
+    const whatsappEl = document.getElementById('whatsappLink');
+    if (whatsappEl && typeof WHATSAPP_NUMBER !== 'undefined') {
+        whatsappEl.href = `https://wa.me/${WHATSAPP_NUMBER}`;
+    }
+
     // Ocultar loader
     hideLoader();
 
@@ -23,6 +29,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             const target = document.querySelector(this.getAttribute('href'));
             if (target) target.scrollIntoView({ behavior: 'smooth' });
         });
+    });
+
+    // Refrescar calendario al volver a la pestaña (por si el admin eliminó turnos en otra pestaña)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && typeof loadSlotsData === 'function') {
+            loadSlotsData().then(() => {
+                if (typeof renderCalendar === 'function') renderCalendar();
+            });
+        }
     });
 });
 
