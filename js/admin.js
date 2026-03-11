@@ -256,6 +256,9 @@ function renderAppointments(appointments) {
                         <button class="btn btn-info btn-export-calendar" data-apt-name="${apt.patientName}" data-apt-date="${apt.date}" data-apt-time="${apt.time}" data-apt-reason="${apt.reason}" data-apt-phone="${apt.patientPhone}" style="background-color: #4285F4;">
                             📅 Exportar
                         </button>
+                        <button class="btn btn-danger btn-revert-appointment" data-apt-id="${apt.id}" data-apt-date="${apt.date}" data-apt-time="${apt.time}">
+                            ↩️ Revertir
+                        </button>
                     </div>
                 </div>
             `;
@@ -272,6 +275,10 @@ function renderAppointments(appointments) {
                 );
                 showAdminToast('Se abrió Google Calendar. Guardá la cita.');
             });
+        });
+
+        container.querySelectorAll('.btn-revert-appointment').forEach(btn => {
+            btn.addEventListener('click', () => handleRevertAppointment(btn.dataset.aptId, btn.dataset.aptDate, btn.dataset.aptTime));
         });
     } catch (error) {
         console.error('Error cargando reservas:', error);
@@ -471,6 +478,21 @@ async function handleReleaseSlot(slotId) {
     } catch (error) {
         console.error('Error liberando turno:', error);
         showAdminToast('Error al liberar.');
+    }
+}
+
+/**
+ * Maneja la reversión de una cita (cancelar reserva)
+ */
+async function handleRevertAppointment(appointmentId, dateStr, timeStr) {
+    if (!confirm('¿Revertir esta cita? El turno volverá a estar disponible y la reserva se eliminará.')) return;
+
+    try {
+        await revertAppointment(appointmentId, dateStr, timeStr);
+        showAdminToast('Reserva revertida. El turno está disponible nuevamente.');
+    } catch (error) {
+        console.error('Error revertiendo cita:', error);
+        showAdminToast('Error al revertir la reserva.');
     }
 }
 

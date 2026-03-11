@@ -245,6 +245,30 @@ async function releaseSlot(slotId) {
 }
 
 /**
+ * Revierte una cita (la elimina y libera el turno)
+ */
+async function revertAppointment(appointmentId, dateStr, timeStr) {
+    if (!appointmentsRef || !bookedSlotsRef || !availableSlotsRef) throw new Error('Firebase no configurado');
+    
+    // Calcular el slotId basado en fecha y hora
+    const slotId = `${dateStr}_${timeStr.replace(':', '')}`;
+    
+    try {
+        // Eliminar la cita
+        await appointmentsRef.doc(appointmentId).delete();
+        
+        // Eliminar de bookedSlots
+        await bookedSlotsRef.doc(slotId).delete();
+        
+        // Crear en availableSlots
+        await createAvailableSlot(dateStr, timeStr);
+    } catch (error) {
+        console.error('Error revertiendo cita:', error);
+        throw error;
+    }
+}
+
+/**
  * Marca manualmente un turno como ocupado - solo admin
  * (sin crear appointment, para casos especiales)
  */
