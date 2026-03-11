@@ -637,6 +637,36 @@ body {
     min-height: 80px;
 }
 
+/* Checkbox de Google Calendar */
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    margin-top: 1rem !important;
+    margin-bottom: 1rem !important;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: var(--accent);
+    flex-shrink: 0;
+}
+
+.checkbox-label input[type="checkbox"]:hover {
+    opacity: 0.8;
+}
+
 .form-actions {
     display: flex;
     gap: 1rem;

@@ -124,6 +124,15 @@
                     <label for="motivo">Motivo de la sesión *</label>
                     <textarea id="motivo" name="motivo" rows="3" required placeholder="Breve descripción del motivo de tu consulta"></textarea>
                 </div>
+
+                <!-- Opción de Google Calendar -->
+                <div class="form-group checkbox-group">
+                    <label for="saveToCalendar" class="checkbox-label">
+                        <input type="checkbox" id="saveToCalendar" name="saveToCalendar">
+                        <span>📅 Guardar turno en Google Calendar</span>
+                    </label>
+                </div>
+
                 <div class="form-actions">
                     <button type="button" id="cancelBooking" class="btn btn-secondary">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Confirmar reserva</button>
@@ -202,6 +211,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="js/config.js"></script>
     <script src="js/firebase-service.js"></script>
+    <script src="js/google-calendar-service.js"></script>
     <script src="js/calendar.js"></script>
     <script src="js/booking.js"></script>
     <script src="js/main.js"></script>

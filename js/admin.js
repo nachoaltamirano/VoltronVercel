@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('loginForm')?.addEventListener('submit', handleLogin);
     document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
     document.getElementById('createSlotForm')?.addEventListener('submit', handleCreateSlot);
+    document.getElementById('blockPatternForm')?.addEventListener('submit', handleBlockPattern);
     
     setupTabs();
 });
@@ -43,6 +44,7 @@ function showAdminPanel(user) {
     document.getElementById('adminUserEmail').textContent = user.email;
     
     loadAdminData();
+    loadBlockPatterns();
     setupAdminRealtimeUpdates();
 }
 
@@ -52,10 +54,13 @@ function showAdminPanel(user) {
 function setupAdminRealtimeUpdates() {
     if (typeof subscribeToAdminDataRealtime !== 'function') return;
 
-    unsubscribeAdminData = subscribeToAdminDataRealtime(({ available, booked, appointments }) => {
+    unsubscribeAdminData = subscribeToAdminDataRealtime(({ available, booked, appointments, blockPatterns }) => {
         renderAvailableSlots(available);
         renderBookedSlots(booked);
         renderAppointments(appointments);
+        if (blockPatterns) {
+            renderBlockPatterns(blockPatterns);
+        }
     });
 }
 
@@ -179,9 +184,20 @@ function renderBookedSlots(slots) {
         container.innerHTML = slots.map(slot => {
             const slotId = slot.id;
             const dateFormatted = formatDateForDisplay(slot.date);
+            let statusLabel = '';
+            
+            // Mostrar tipo de ocupación
+            if (slot.blocked) {
+                statusLabel = ' 🔒 (bloqueado)';
+            } else if (slot.manual) {
+                statusLabel = ' ⏸️ (manual)';
+            } else if (slot.appointmentId) {
+                statusLabel = ' 📅 (reservado)';
+            }
+            
             return `
                 <div class="slot-item" data-slot-id="${slotId}">
-                    <span class="slot-item-info">${dateFormatted} - ${slot.time} ${slot.manual ? '(manual)' : ''}</span>
+                    <span class="slot-item-info">${dateFormatted} - ${slot.time}${statusLabel}</span>
                     <div class="slot-item-actions">
                         <button class="btn btn-primary btn-release-slot" data-slot-id="${slotId}">Liberar turno</button>
                     </div>
@@ -236,9 +252,27 @@ function renderAppointments(appointments) {
                         <div class="detail">${apt.reason}</div>
                         <div class="detail">📞 ${apt.patientPhone}</div>
                     </div>
+                    <div class="slot-item-actions">
+                        <button class="btn btn-info btn-export-calendar" data-apt-name="${apt.patientName}" data-apt-date="${apt.date}" data-apt-time="${apt.time}" data-apt-reason="${apt.reason}" data-apt-phone="${apt.patientPhone}" style="background-color: #4285F4;">
+                            📅 Exportar
+                        </button>
+                    </div>
                 </div>
             `;
         }).join('');
+
+        container.querySelectorAll('.btn-export-calendar').forEach(btn => {
+            btn.addEventListener('click', () => {
+                openGoogleCalendarWithEvent(
+                    btn.dataset.aptName,
+                    btn.dataset.aptDate,
+                    btn.dataset.aptTime,
+                    btn.dataset.aptReason,
+                    btn.dataset.aptPhone
+                );
+                showAdminToast('Se abrió Google Calendar. Guardá la cita.');
+            });
+        });
     } catch (error) {
         console.error('Error cargando reservas:', error);
         container.innerHTML = '<p class="empty-state">Error al cargar.</p>';
@@ -270,15 +304,129 @@ async function handleCreateSlot(e) {
     if (!dateStr || !timeStr) return;
 
     try {
+        // Verificar si la hora está bloqueada por patrón recurrente
+        const isBlocked = await isTimeInBlockPattern(dateStr, timeStr);
+        if (isBlocked) {
+            showAdminToast('⚠️ Este turno está dentro de un bloqueo recurrente.');
+            return;
+        }
+
         await createAvailableSlot(dateStr, timeStr);
         showAdminToast('Turno creado correctamente.');
         dateInput.value = '';
         timeInput.value = '';
-        // loadAdminData se omite: el listener en tiempo real actualiza el panel
     } catch (error) {
         console.error('Error creando turno:', error);
         showAdminToast('Error al crear el turno.');
     }
+}
+
+/**
+ * Maneja la creación de un bloqueo recurrente
+ */
+async function handleBlockPattern(e) {
+    e.preventDefault();
+    const daySelect = document.getElementById('blockPatternDay');
+    const startTimeInput = document.getElementById('blockPatternStartTime');
+    const endTimeInput = document.getElementById('blockPatternEndTime');
+    const reasonInput = document.getElementById('blockPatternReason');
+
+    const dayOfWeek = parseInt(daySelect.value);
+    const startTime = startTimeInput.value;
+    const endTime = endTimeInput.value;
+    const reason = reasonInput.value || '';
+
+    if (!startTime || !endTime) return;
+    
+    // Validar que la hora de inicio sea menor que la de fin
+    if (startTime >= endTime) {
+        showAdminToast('La hora de inicio debe ser menor que la de fin.');
+        return;
+    }
+
+    try {
+        await createBlockPattern(dayOfWeek, startTime, endTime, reason);
+        showAdminToast(`Bloqueo creado: ${getDayName(dayOfWeek)} de ${startTime} a ${endTime}`);
+        daySelect.value = '';
+        startTimeInput.value = '';
+        endTimeInput.value = '';
+        reasonInput.value = '';
+    } catch (error) {
+        console.error('Error creando bloqueo:', error);
+        showAdminToast('Error al crear el bloqueo.');
+    }
+}
+
+/**
+ * Carga y muestra los bloqueos recurrentes
+ */
+async function loadBlockPatterns() {
+    const patterns = await getBlockPatterns();
+    renderBlockPatterns(patterns);
+}
+
+/**
+ * Renderiza la lista de bloqueos recurrentes
+ */
+function renderBlockPatterns(patterns) {
+    const container = document.getElementById('blockPatternsList');
+    if (!container) return;
+
+    try {
+        if (!patterns || patterns.length === 0) {
+            container.innerHTML = '<p class="empty-state">No hay bloqueos recurrentes.</p>';
+            return;
+        }
+
+        container.innerHTML = `
+            <h3>Bloqueos activos:</h3>
+            <div class="slots-list">
+                ${patterns.map(pattern => {
+                    const dayName = getDayName(pattern.dayOfWeek);
+                    const reason = pattern.reason ? ` - ${pattern.reason}` : '';
+                    return `
+                        <div class="slot-item">
+                            <span class="slot-item-info">
+                                ${dayName} de ${pattern.startTime} a ${pattern.endTime}${reason}
+                            </span>
+                            <div class="slot-item-actions">
+                                <button class="btn btn-danger btn-delete-pattern" data-pattern-id="${pattern.id}">Eliminar</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+
+        container.querySelectorAll('.btn-delete-pattern').forEach(btn => {
+            btn.addEventListener('click', () => handleDeleteBlockPattern(btn.dataset.patternId));
+        });
+    } catch (error) {
+        console.error('Error renderizando bloqueos:', error);
+    }
+}
+
+/**
+ * Maneja la eliminación de un bloqueo recurrente
+ */
+async function handleDeleteBlockPattern(patternId) {
+    if (!confirm('¿Eliminar este bloqueo recurrente?')) return;
+
+    try {
+        await deleteBlockPattern(patternId);
+        showAdminToast('Bloqueo eliminado.');
+    } catch (error) {
+        console.error('Error eliminando bloqueo:', error);
+        showAdminToast('Error al eliminar.');
+    }
+}
+
+/**
+ * Devuelve el nombre del día de la semana
+ */
+function getDayName(dayOfWeek) {
+    const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    return days[dayOfWeek] || '';
 }
 
 /**

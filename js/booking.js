@@ -63,6 +63,7 @@ async function handleBookingSubmit(e) {
     const submitBtn = form.querySelector('button[type="submit"]');
     const slotDate = form.closest('.modal')?.dataset.slotDate;
     const slotTime = form.closest('.modal')?.dataset.slotTime;
+    const saveToCalendar = form.saveToCalendar?.checked || false;
 
     if (!slotDate || !slotTime) {
         showToast('Error: turno no válido.');
@@ -106,6 +107,18 @@ async function handleBookingSubmit(e) {
         renderCalendar();
 
         showToast('¡Reserva confirmada! Te enviamos los detalles por WhatsApp.');
+
+        // Si el usuario marcó la opción, abrir Google Calendar
+        if (saveToCalendar) {
+            openGoogleCalendarWithEvent(
+                patientData.nombre,
+                slotDate,
+                slotTime,
+                patientData.motivo,
+                patientData.telefono
+            );
+            showToast('Se abrió Google Calendar. Guardá la cita en tu calendario.');
+        }
 
         // Abrir WhatsApp en nueva pestaña
         window.open(whatsappUrl, '_blank');

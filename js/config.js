@@ -23,3 +23,5 @@ window.firebaseConfig = firebaseConfig;
 // Número de WhatsApp del dueño (para envío de notificaciones)
 // Formato: código de país + número sin espacios ni guiones
 const WHATSAPP_NUMBER = "5491178285874";
+
+

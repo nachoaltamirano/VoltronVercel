@@ -69,6 +69,46 @@
                     </form>
                 </section>
 
+                <!-- Bloqueos recurrentes -->
+                <section class="admin-section">
+                    <h2>Bloqueos recurrentes (ej: Todos los martes de 16 a 17)</h2>
+                    <form id="blockPatternForm" class="create-slot-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="blockPatternDay">Día de la semana</label>
+                                <select id="blockPatternDay" required>
+                                    <option value="">Seleccionar...</option>
+                                    <option value="0">Lunes</option>
+                                    <option value="1">Martes</option>
+                                    <option value="2">Miércoles</option>
+                                    <option value="3">Jueves</option>
+                                    <option value="4">Viernes</option>
+                                    <option value="5">Sábado</option>
+                                    <option value="6">Domingo</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="blockPatternStartTime">Desde</label>
+                                <input type="time" id="blockPatternStartTime" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="blockPatternEndTime">Hasta</label>
+                                <input type="time" id="blockPatternEndTime" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="blockPatternReason">Motivo (opcional)</label>
+                                <input type="text" id="blockPatternReason" placeholder="Ej: Matías">
+                            </div>
+                            <button type="submit" class="btn btn-danger">Crear bloqueo</button>
+                        </div>
+                    </form>
+
+                    <!-- Lista de bloqueos recurrentes -->
+                    <div id="blockPatternsList" style="margin-top: 20px;"></div>
+                </section>
+
                 <!-- Vista de turnos -->
                 <section class="admin-section">
                     <div class="tabs">
@@ -105,6 +145,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="js/config.js"></script>
     <script src="js/firebase-service.js"></script>
+    <script src="js/google-calendar-service.js"></script>
     <script src="js/admin.js"></script>
+</body>
+</html>
 </body>
 </html>

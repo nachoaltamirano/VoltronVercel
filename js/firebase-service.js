@@ -4,7 +4,7 @@
  */
 
 // Inicializar Firebase (solo si está configurado)
-let db, auth, availableSlotsRef, bookedSlotsRef, appointmentsRef;
+let db, auth, availableSlotsRef, bookedSlotsRef, appointmentsRef, blockPatternsRef;
 
 const config = typeof firebaseConfig !== 'undefined' ? firebaseConfig : (window.firebaseConfig || {});
 if (config.apiKey && config.apiKey !== 'TU_API_KEY') {
@@ -14,6 +14,7 @@ if (config.apiKey && config.apiKey !== 'TU_API_KEY') {
     availableSlotsRef = db.collection('availableSlots');
     bookedSlotsRef = db.collection('bookedSlots');
     appointmentsRef = db.collection('appointments');
+    blockPatternsRef = db.collection('blockPatterns');
 } else {
     console.warn('Voltron Lab: Configurá Firebase en js/config.js para usar el sitio.');
 }
@@ -159,7 +160,7 @@ function subscribeToSlotsRealtime(callback) {
  * Retorna función para cancelar.
  */
 function subscribeToAdminDataRealtime(callback) {
-    if (!availableSlotsRef || !bookedSlotsRef || !appointmentsRef) return () => {};
+    if (!availableSlotsRef || !bookedSlotsRef || !appointmentsRef || !blockPatternsRef) return () => {};
 
     let debounceTimer = null;
     const loadData = () => {
@@ -168,20 +169,23 @@ function subscribeToAdminDataRealtime(callback) {
             Promise.all([
                 getAvailableSlots(),
                 getBookedSlots(),
-                getAppointments()
-            ]).then(([available, booked, appointments]) => callback({ available, booked, appointments }));
+                getAppointments(),
+                getBlockPatterns()
+            ]).then(([available, booked, appointments, blockPatterns]) => callback({ available, booked, appointments, blockPatterns }));
         }, 150);
     };
 
     const unsubAvailable = availableSlotsRef.onSnapshot(() => loadData());
     const unsubBooked = bookedSlotsRef.onSnapshot(() => loadData());
     const unsubAppointments = appointmentsRef.onSnapshot(() => loadData());
+    const unsubPatterns = blockPatternsRef.onSnapshot(() => loadData());
 
     return () => {
         clearTimeout(debounceTimer);
         unsubAvailable();
         unsubBooked();
         unsubAppointments();
+        unsubPatterns();
     };
 }
 
@@ -247,7 +251,14 @@ async function releaseSlot(slotId) {
 async function markSlotAsOccupiedManually(dateStr, timeStr) {
     if (!availableSlotsRef || !bookedSlotsRef) throw new Error('Firebase no configurado');
     const slotId = `${dateStr}_${timeStr.replace(':', '')}`;
-    await availableSlotsRef.doc(slotId).delete();
+    
+    // Si el turno está en disponibles, eliminarlo primero
+    const availableDoc = await availableSlotsRef.doc(slotId).get();
+    if (availableDoc.exists) {
+        await availableSlotsRef.doc(slotId).delete();
+    }
+    
+    // Agregar a ocupados
     await bookedSlotsRef.doc(slotId).set({
         date: dateStr,
         time: timeStr,
@@ -257,10 +268,33 @@ async function markSlotAsOccupiedManually(dateStr, timeStr) {
 }
 
 /**
+ * Crea permanentemente un turno bloqueado (ocupado) - solo admin
+ * Se crea directamente en bookedSlots sin pasar por availableSlots
+ */
+async function createBlockedSlot(dateStr, timeStr) {
+    if (!bookedSlotsRef) throw new Error('Firebase no configurado');
+    const slotId = `${dateStr}_${timeStr.replace(':', '')}`;
+    
+    // Primero verificar si ya existe
+    const existingDoc = await bookedSlotsRef.doc(slotId).get();
+    if (existingDoc.exists) {
+        throw new Error('Este turno ya está bloqueado o reservado');
+    }
+    
+    await bookedSlotsRef.doc(slotId).set({
+        date: dateStr,
+        time: timeStr,
+        blocked: true,
+        blockedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+}
+
+/**
  * Crea una reserva (appointment) y marca el turno como ocupado
  */
 async function createAppointment(dateStr, timeStr, patientData) {
     if (!appointmentsRef) throw new Error('Firebase no configurado');
+    
     const docRef = await appointmentsRef.add({
         date: dateStr,
         time: timeStr,
@@ -309,4 +343,75 @@ function onAuthStateChanged(callback) {
         return () => {};
     }
     return auth.onAuthStateChanged(callback);
+}
+
+/**
+ * Crea un patrón de bloqueo recurrente (ej: todos los martes de 16 a 17)
+ */
+async function createBlockPattern(dayOfWeek, startTime, endTime, reason) {
+    if (!blockPatternsRef) throw new Error('Firebase no configurado');
+    
+    await blockPatternsRef.add({
+        dayOfWeek: dayOfWeek,  // 0=lunes, 1=martes, ..., 6=domingo
+        startTime: startTime,
+        endTime: endTime,
+        reason: reason,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+}
+
+/**
+ * Obtiene todos los patrones de bloqueo
+ */
+async function getBlockPatterns() {
+    if (!blockPatternsRef) return [];
+    const snapshot = await blockPatternsRef.get();
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+/**
+ * Elimina un patrón de bloqueo
+ */
+async function deleteBlockPattern(patternId) {
+    if (!blockPatternsRef) throw new Error('Firebase no configurado');
+    await blockPatternsRef.doc(patternId).delete();
+}
+
+/**
+ * Verifica si una fecha y hora están dentro de un patrón de bloqueo
+ * Retorna true si está bloqueada
+ */
+async function isTimeInBlockPattern(dateStr, timeStr) {
+    const patterns = await getBlockPatterns();
+    if (!patterns || patterns.length === 0) return false;
+    
+    // Obtener el día de la semana (0=domingo, 1=lunes, ..., 6=sábado en JS)
+    // Pero nuestro sistema usa 0=lunes, así que ajustamos
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    let dayOfWeek = date.getDay();
+    dayOfWeek = (dayOfWeek + 6) % 7;  // Convertir: domingo(0) -> 6, lunes(1) -> 0, etc.
+    
+    // Verificar si la hora está dentro de algún patrón
+    for (let pattern of patterns) {
+        if (pattern.dayOfWeek === dayOfWeek) {
+            if (timeStr >= pattern.startTime && timeStr < pattern.endTime) {
+                return true;
+            }
+        }
+    }
+    
+    return false;
+}
+
+/**
+ * Suscripción en tiempo real para bloqueos recurrentes
+ */
+function subscribeToBlockPatternsRealtime(callback) {
+    if (!blockPatternsRef) return () => {};
+    
+    return blockPatternsRef.onSnapshot((snapshot) => {
+        const patterns = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(patterns);
+    });
 }
