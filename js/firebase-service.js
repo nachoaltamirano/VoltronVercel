@@ -215,19 +215,33 @@ async function deleteAvailableSlot(slotId) {
  * Marca un turno como ocupado (mover de available a booked)
  */
 async function markSlotAsBooked(dateStr, timeStr, appointmentData) {
-    if (!availableSlotsRef || !bookedSlotsRef) throw new Error('Firebase no configurado');
+    if (!availableSlotsRef || !bookedSlotsRef) {
+        const err = new Error('Firebase no configurado - refs faltando');
+        console.error('ERROR:', err, { availableSlotsRef: !!availableSlotsRef, bookedSlotsRef: !!bookedSlotsRef });
+        throw err;
+    }
+    
     const slotId = `${dateStr}_${timeStr.replace(':', '')}`;
     
-    // Eliminar de disponibles
-    await availableSlotsRef.doc(slotId).delete();
-    
-    // Agregar a ocupados
-    await bookedSlotsRef.doc(slotId).set({
-        date: dateStr,
-        time: timeStr,
-        appointmentId: appointmentData.id,
-        bookedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    try {
+        // Eliminar de disponibles
+        console.log(`  - Eliminando ${slotId} de availableSlots...`);
+        await availableSlotsRef.doc(slotId).delete();
+        console.log(`  ✓ Eliminado de availableSlots`);
+        
+        // Agregar a ocupados
+        console.log(`  - Agregando ${slotId} a bookedSlots...`);
+        await bookedSlotsRef.doc(slotId).set({
+            date: dateStr,
+            time: timeStr,
+            appointmentId: appointmentData.id,
+            bookedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        console.log(`  ✓ Agregado a bookedSlots`);
+    } catch (error) {
+        console.error(`❌ Error marcando slot ${slotId} como booked:`, error);
+        throw error;
+    }
 }
 
 /**
@@ -317,22 +331,42 @@ async function createBlockedSlot(dateStr, timeStr) {
  * Crea una reserva (appointment) y marca el turno como ocupado
  */
 async function createAppointment(dateStr, timeStr, patientData) {
-    if (!appointmentsRef) throw new Error('Firebase no configurado');
+    if (!appointmentsRef) {
+        const err = new Error('Firebase no configurado - appointmentsRef es null');
+        console.error('ERROR:', err);
+        throw err;
+    }
     
-    const docRef = await appointmentsRef.add({
-        date: dateStr,
-        time: timeStr,
-        patientName: patientData.nombre,
-        patientPhone: patientData.telefono,
-        patientEmail: patientData.email || '',
-        reason: patientData.motivo,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        status: 'confirmed'
-    });
+    try {
+        console.log('1️⃣ Creando documento en appointments...');
+        const docRef = await appointmentsRef.add({
+            date: dateStr,
+            time: timeStr,
+            patientName: patientData.nombre,
+            patientPhone: patientData.telefono,
+            patientEmail: patientData.email || '',
+            reason: patientData.motivo,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            status: 'confirmed'
+        });
+        console.log('✅ Documento creado:', docRef.id);
 
-    await markSlotAsBooked(dateStr, timeStr, { id: docRef.id });
-    
-    return docRef.id;
+        console.log('2️⃣ Marcando turno como ocupado...');
+        await markSlotAsBooked(dateStr, timeStr, { id: docRef.id });
+        console.log('✅ Turno marcado como ocupado');
+        
+        return docRef.id;
+    } catch (error) {
+        console.error('❌ Error en createAppointment:', error);
+        console.error('Detalles del error:', {
+            code: error.code,
+            message: error.message,
+            dateStr,
+            timeStr,
+            patientData: (({ nombre, telefono, email, motivo }) => ({ nombre, telefono, email, motivo }))(patientData)
+        });
+        throw error;
+    }
 }
 
 /**

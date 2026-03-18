@@ -95,7 +95,9 @@ async function handleBookingSubmit(e) {
     submitBtn.textContent = 'Reservando...';
 
     try {
+        console.log('📝 Iniciando creación de appointment:', { slotDate, slotTime, patientData });
         const appointmentId = await createAppointment(slotDate, slotTime, patientData);
+        console.log('✅ Appointment creado exitosamente:', appointmentId);
         
         // Generar mensaje de WhatsApp
         const whatsappMessage = generateWhatsAppMessage(patientData, slotDate, slotTime);
@@ -123,8 +125,22 @@ async function handleBookingSubmit(e) {
         // Abrir WhatsApp en nueva pestaña
         window.open(whatsappUrl, '_blank');
     } catch (error) {
-        console.error('Error al reservar:', error);
-        showToast('Error al realizar la reserva. Intentá nuevamente.');
+        console.error('❌ Error al reservar:', error);
+        console.error('Error details:', {
+            message: error.message,
+            code: error.code,
+            name: error.name,
+            stack: error.stack
+        });
+        
+        // Mostrar mensaje de error más específico
+        let errorMessage = 'Error al crear el turno.';
+        if (error.code === 'permission-denied') {
+            errorMessage = 'Permiso denegado. Contactá al administrador.';
+        } else if (error.message) {
+            errorMessage = `Error: ${error.message}`;
+        }
+        showToast(errorMessage);
     } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = 'Confirmar reserva';
