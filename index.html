@@ -59,22 +59,7 @@
     <section id="calendario" class="section calendario-section">
         <div class="container">
             <h2 class="section-title">Calendario de Turnos</h2>
-            <p class="section-subtitle">Seleccioná el mes y elegí un horario disponible</p>
-
-            <!-- Selector de mes -->
-            <div class="month-selector">
-                <button id="prevMonth" class="btn-icon" aria-label="Mes anterior">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M15 18l-6-6 6-6"/>
-                    </svg>
-                </button>
-                <h3 id="currentMonthDisplay" class="month-display">Marzo 2025</h3>
-                <button id="nextMonth" class="btn-icon" aria-label="Mes siguiente">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 18l6-6-6-6"/>
-                    </svg>
-                </button>
-            </div>
+            <p class="section-subtitle">Seleccioná un horario disponible</p>
 
             <!-- Leyenda -->
             <div class="legend">
@@ -82,9 +67,16 @@
                 <span class="legend-item"><span class="legend-dot occupied"></span> Ocupado</span>
             </div>
 
-            <!-- Calendario grid -->
-            <div id="calendarContainer" class="calendar-container">
-                <div id="calendarGrid" class="calendar-grid"></div>
+            <!-- Calendario grid (2 meses) -->
+            <div id="calendarContainer" class="calendar-container calendar-two-months">
+                <div class="calendar-month">
+                    <h3 id="currentMonthDisplay" class="month-display">Marzo 2025</h3>
+                    <div id="calendarGrid" class="calendar-grid"></div>
+                </div>
+                <div class="calendar-month">
+                    <h3 id="nextMonthDisplay" class="month-display">Abril 2025</h3>
+                    <div id="calendarGridNext" class="calendar-grid"></div>
+                </div>
             </div>
 
             <!-- Mensaje de turno seleccionado -->

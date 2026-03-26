@@ -166,13 +166,15 @@ function renderCalendar(bookedSlots, appointments) {
         });
     }
 
-    // Obtener los próximos 10 días
+    // Obtener todos los días desde hoy hasta fin del mes siguiente
     const today = new Date();
+    const endOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+    
     const days = [];
-    for (let i = 0; i < 10; i++) {
-        const date = new Date(today);
-        date.setDate(date.getDate() + i);
-        days.push(date);
+    const currentDate = new Date(today);
+    while (currentDate <= endOfNextMonth) {
+        days.push(new Date(currentDate));
+        currentDate.setDate(currentDate.getDate() + 1);
     }
 
     // Agrupar slots por día
@@ -185,7 +187,7 @@ function renderCalendar(bookedSlots, appointments) {
     }
 
     if (!bookedSlots || bookedSlots.length === 0) {
-        container.innerHTML = '<p class="empty-state">No hay turnos ocupados en los próximos 10 días.</p>';
+        container.innerHTML = '<p class="empty-state">No hay turnos ocupados en el mes actual y siguiente.</p>';
         return;
     }
 
@@ -208,9 +210,10 @@ function renderCalendar(bookedSlots, appointments) {
                 
                 // Si es bloqueado, mostrar diferente
                 if (slot.blocked) {
+                    const blockedPatientName = slot.patientName ? ` - ${slot.patientName}` : '';
                     html += `<div class="calendar-slot blocked">
                         <div class="slot-time">${slot.time}</div>
-                        <div class="slot-patient">🔒 Bloqueado</div>
+                        <div class="slot-patient">🔒 Bloqueado${blockedPatientName}</div>
                         <div class="slot-actions-calendar">
                             <button class="btn btn-warning btn-unblock-slot" data-date="${slot.date}" data-time="${slot.time}">
                                 🔓 Desbloquear
@@ -615,19 +618,19 @@ async function handleCreateMultipleSlots() {
  * Maneja el bloqueo de un turno disponible
  */
 async function handleBlockSlot(dateStr, timeStr, slotId) {
-    if (!confirm(`¿Bloquear el turno ${timeStr}? Ya no aparecerá en el calendario disponible.`)) return;
+    if (!confirm(`¿Bloquear el turno ${timeStr}? Se bloqueará para las próximas 8 semanas en todos los calendarios.`)) return;
 
     try {
-        console.log(`🔒 Bloqueando slot: ${dateStr} ${timeStr}`);
+        console.log(`🔒 Bloqueando slot: ${dateStr} ${timeStr} (8 semanas)`);
         
-        // Eliminar de disponibles
+        // Eliminar de disponibles (turno original)
         await deleteAvailableSlot(slotId);
         
-        // Crear como bloqueado
-        await createBlockedSlot(dateStr, timeStr);
+        // Crear bloqueos para 8 semanas
+        const blockedDates = await blockSlotForWeeks(dateStr, timeStr, slotId);
         
-        console.log(`✅ Slot bloqueado exitosamente`);
-        showAdminToast(`🔒 Horario ${timeStr} bloqueado.`);
+        console.log(`✅ Slot bloqueado para ${blockedDates.length} semanas`);
+        showAdminToast(`🔒 Horario ${timeStr} bloqueado por 8 semanas.`);
     } catch (error) {
         console.error('❌ Error bloqueando turno:', error);
         showAdminToast(`❌ Error: ${error.message}`);
@@ -638,16 +641,17 @@ async function handleBlockSlot(dateStr, timeStr, slotId) {
  * Bloquea un turno que ya tiene paciente asignado
  */
 async function handleBlockSlotFromCalendar(aptId, dateStr, timeStr, patientName) {
-    if (!confirm(`¿Bloquear el horario ${timeStr}? No aparecerá en Turnos Disponibles para otros clientes.`)) return;
+    if (!confirm(`¿Bloquear el horario ${timeStr}? Se bloqueará para las próximas 8 semanas. El paciente ${patientName} se mantiene.`)) return;
 
     try {
-        console.log(`🔒 Bloqueando horario con paciente: ${dateStr} ${timeStr} - ${patientName}`);
+        console.log(`🔒 Bloqueando horario con paciente: ${dateStr} ${timeStr} - ${patientName} (8 semanas)`);
         
-        // Solo crear como bloqueado (el appointment se mantiene)
-        await createBlockedSlot(dateStr, timeStr);
+        // Crear bloqueos para 8 semanas (solo para futuras instancias)
+        // Pasar el nombre del paciente para que aparezca en los bloqueos
+        const blockedDates = await blockSlotForWeeks(dateStr, timeStr, null, patientName);
         
-        console.log(`✅ Horario bloqueado exitosamente. Paciente ${patientName} se mantiene.`);
-        showAdminToast(`🔒 Horario ${timeStr} bloqueado. El paciente ${patientName} se conserva.`);
+        console.log(`✅ Horario bloqueado para ${blockedDates.length - 1} semanas futuras. Paciente ${patientName} se conserva en turno actual.`);
+        showAdminToast(`🔒 Horario ${timeStr} bloqueado por 8 semanas. Paciente ${patientName} se conserva.`);
     } catch (error) {
         console.error('❌ Error bloqueando turno:', error);
         showAdminToast(`❌ Error: ${error.message}`);
@@ -667,20 +671,41 @@ async function handleDeleteSlot(slotId) {
 }
 
 /**
- * Desbloquea un turno bloqueado del calendario
+ * Desbloquea un turno bloqueado del calendario (8 semanas)
  */
 async function handleUnblockSlot(dateStr, timeStr) {
-    if (!confirm(`¿Desbloquear el turno ${timeStr}?`)) return;
+    if (!confirm(`¿Desbloquear el turno ${timeStr}? Se desbloqueará para las próximas 8 semanas.`)) return;
 
     try {
-        console.log(`🔓 Desbloqueando slot: ${dateStr} ${timeStr}`);
+        console.log(`🔓 Desbloqueando slots: ${dateStr} ${timeStr} (8 semanas)`);
         
-        // Eliminar de bloqueados (booked con blocked: true)
-        const slotId = `${dateStr}_${timeStr.replace(':', '')}`;
-        await db.collection('bookedSlots').doc(slotId).delete();
+        // Parsear la fecha base
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const baseDate = new Date(year, month - 1, day);
         
-        console.log(`✅ Slot desbloqueado exitosamente`);
-        showAdminToast(`🔓 Horario ${timeStr} desbloqueado.`);
+        let unlockedCount = 0;
+        
+        // Desbloquear para 8 semanas (0 a 7)
+        for (let week = 0; week < 8; week++) {
+            const futureDate = new Date(baseDate);
+            futureDate.setDate(futureDate.getDate() + (week * 7));
+            const futureDateStr = formatDateId(futureDate);
+            const slotId = `${futureDateStr}_${timeStr.replace(':', '')}`;
+            
+            try {
+                const doc = await db.collection('bookedSlots').doc(slotId).get();
+                if (doc.exists && doc.data().blocked) {
+                    await db.collection('bookedSlots').doc(slotId).delete();
+                    unlockedCount++;
+                    console.log(`  ✓ Desbloqueado: ${futureDateStr} ${timeStr}`);
+                }
+            } catch (error) {
+                console.error(`  ❌ Error desbloqueando ${futureDateStr}: ${error.message}`);
+            }
+        }
+        
+        console.log(`✅ Slots desbloqueados exitosamente (${unlockedCount} semanas)`);
+        showAdminToast(`🔓 Horario ${timeStr} desbloqueado por 8 semanas.`);
     } catch (error) {
         console.error('❌ Error desbloqueando turno:', error);
         showAdminToast(`❌ Error: ${error.message}`);

@@ -527,6 +527,33 @@ body {
     min-width: 120px;
 }
 
+/* ========== Calendario: Dos Meses ========== */
+.calendar-two-months {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+}
+
+.calendar-month {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    border: 1px solid var(--border);
+}
+
+.calendar-month .month-display {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    font-size: 1.2rem;
+    color: var(--text-primary);
+}
+
+.calendar-month .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
 /* ========== Modal ========== */
 .modal {
     position: fixed;
@@ -939,6 +966,11 @@ body {
     .calendar-container {
         padding: 1rem;
         margin-bottom: 1.5rem;
+    }
+
+    .calendar-two-months {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
     }
 
     .calendar-grid {

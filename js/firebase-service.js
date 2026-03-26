@@ -334,6 +334,72 @@ async function createBlockedSlot(dateStr, timeStr) {
 }
 
 /**
+ * Bloquea un turno (fecha + hora) para las próximas 8 semanas
+ * Crea un documento bloqueado para cada ocurrencia semanal
+ * También elimina de disponibles si existe
+ */
+async function blockSlotForWeeks(dateStr, timeStr, slotId = null, patientName = null) {
+    if (!bookedSlotsRef || !availableSlotsRef) throw new Error('Firebase no configurado');
+    
+    // Si no hay slotId, generarlo
+    if (!slotId) {
+        slotId = `${dateStr}_${timeStr.replace(':', '')}`;
+    }
+    
+    // Parsear la fecha base
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const baseDate = new Date(year, month - 1, day);
+    
+    console.log(`🔒 Bloqueando horario ${timeStr} para las próximas 8 semanas comenzando desde ${dateStr}`);
+    
+    const blockedDates = [];
+    
+    // Crear bloqueos para 8 semanas (0 a 7)
+    for (let week = 0; week < 8; week++) {
+        const futureDate = new Date(baseDate);
+        futureDate.setDate(futureDate.getDate() + (week * 7));
+        const futureDateStr = formatDateId(futureDate);
+        
+        try {
+            // Eliminar de disponibles si existe
+            const futureSlotId = `${futureDateStr}_${timeStr.replace(':', '')}`;
+            const availableDoc = await availableSlotsRef.doc(futureSlotId).get();
+            if (availableDoc.exists) {
+                await availableSlotsRef.doc(futureSlotId).delete();
+                console.log(`  ✓ Removido de disponibles: ${futureDateStr} ${timeStr}`);
+            }
+            
+            // Crear como bloqueado
+            const existingDoc = await bookedSlotsRef.doc(futureSlotId).get();
+            if (!existingDoc.exists) {
+                const blockedData = {
+                    date: futureDateStr,
+                    time: timeStr,
+                    blocked: true,
+                    blockedAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+                
+                // Agregar nombre del paciente si existe
+                if (patientName) {
+                    blockedData.patientName = patientName;
+                    blockedData.blockedReason = 'blocked_for_patient';
+                }
+                
+                await bookedSlotsRef.doc(futureSlotId).set(blockedData);
+                blockedDates.push(futureDateStr);
+                console.log(`  ✓ Bloqueado: ${futureDateStr} ${timeStr}`);
+            } else {
+                console.log(`  ℹ Ya estaba bloqueado: ${futureDateStr} ${timeStr}`);
+            }
+        } catch (error) {
+            console.error(`  ❌ Error bloqueando ${futureDateStr}: ${error.message}`);
+        }
+    }
+    
+    return blockedDates;
+}
+
+/**
  * Crea una reserva (appointment) y marca el turno como ocupado
  */
 async function createAppointment(dateStr, timeStr, patientData) {

@@ -20,7 +20,6 @@ let unsubscribeSlots = null;
 async function initCalendar() {
     await loadSlotsData();
     renderCalendar();
-    setupMonthNavigation();
     setupRealtimeUpdates();
 }
 
@@ -54,31 +53,32 @@ async function loadSlotsData() {
 }
 
 /**
- * Renderiza el calendario del mes actual
+ * Renderiza los calendarios del mes actual y siguiente
  */
 function renderCalendar() {
-    const grid = document.getElementById('calendarGrid');
-    if (!grid) return;
+    const today = new Date();
+    
+    // Renderizar mes actual
+    renderMonthGrid('calendarGrid', today.getFullYear(), today.getMonth(), '#currentMonthDisplay');
+    
+    // Renderizar mes siguiente
+    const nextMonth = new Date(today);
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    renderMonthGrid('calendarGridNext', nextMonth.getFullYear(), nextMonth.getMonth(), '#nextMonthDisplay');
+}
 
-    const year = currentViewDate.getFullYear();
-    const month = currentViewDate.getMonth();
+/**
+ * Renderiza un mes en el grid especificado
+ */
+function renderMonthGrid(gridId, year, month, monthDisplayId) {
+    const grid = document.getElementById(gridId);
+    if (!grid) return;
     
     // Actualizar display del mes
-    const monthDisplay = document.getElementById('currentMonthDisplay');
+    const monthDisplay = document.querySelector(monthDisplayId);
     if (monthDisplay) {
         monthDisplay.textContent = `${MONTHS_ES[month]} ${year}`;
     }
-
-    // Habilitar/deshabilitar botones de navegación
-    const today = new Date();
-    const minMonth = today.getFullYear() * 12 + today.getMonth();
-    const maxMonth = minMonth + 1; // Solo mes actual y siguiente
-    const currentMonth = year * 12 + month;
-
-    const prevBtn = document.getElementById('prevMonth');
-    const nextBtn = document.getElementById('nextMonth');
-    if (prevBtn) prevBtn.disabled = currentMonth <= minMonth;
-    if (nextBtn) nextBtn.disabled = currentMonth >= maxMonth;
 
     // Primer día del mes y último
     const firstDay = new Date(year, month, 1);
@@ -99,6 +99,7 @@ function renderCalendar() {
     }
 
     // Días del mes
+    const today = new Date();
     const todayStr = formatDateId(today);
     for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
