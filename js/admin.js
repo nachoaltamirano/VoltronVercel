@@ -414,7 +414,9 @@ async function handleCreateSlot(e) {
     } catch (error) {
         console.error('❌ Error creando turno:', error);
         console.error('Error message:', error.message);
-        showAdminToast(`❌ ${error.message || 'Error al crear el turno.'}`);
+        console.error('Stack:', error.stack);
+        const errorMsg = error.message || 'Error desconocido al crear el turno.';
+        showAdminToast(`❌ ${errorMsg}`);
     }
 }
 
@@ -463,14 +465,20 @@ async function handleCreateMultipleSlots() {
     const hasPatient = document.getElementById('multipleAssignPatient').checked;
     const patientTimeStr = hasPatient ? document.getElementById('multiplePatientTime').value : null;
 
-    console.log('Multiple slots - Days:', selectedDays, 'Weeks:', weeksCount, 'Start:', startTimeStr, 'End:', endTimeStr, 'HasPatient:', hasPatient, 'PatientTime:', patientTimeStr);
+    console.log('🔵 Multiple slots - Days:', selectedDays, 'Weeks:', weeksCount, 'Start:', startTimeStr, 'End:', endTimeStr, 'HasPatient:', hasPatient, 'PatientTime:', patientTimeStr);
 
     // Validaciones
     if (selectedDays.length === 0) {
-        throw new Error('Selecciona al menos un día de la semana.');
+        console.error('❌ No days selected');
+        throw new Error('Selecciona al menos un día de la semana (Lunes, Miércoles, Viernes, etc.)');
     }
-    if (!startTimeStr || !endTimeStr) {
-        throw new Error('Completa la hora inicio y hora fin.');
+    if (!startTimeStr) {
+        console.error('❌ Start time empty:', startTimeStr);
+        throw new Error('Completa la hora inicio (ej: 14:00 para 2pm)');
+    }
+    if (!endTimeStr) {
+        console.error('❌ End time empty:', endTimeStr);
+        throw new Error('Completa la hora fin (ej: 19:00 para 7pm)');
     }
     if (hasPatient && !patientTimeStr) {
         throw new Error('Completa la hora del paciente.');
@@ -482,13 +490,18 @@ async function handleCreateMultipleSlots() {
     const startTotalMin = startHour * 60 + startMin;
     const endTotalMin = endHour * 60 + endMin;
 
+    console.log(`⏰ Time calculation: ${startTimeStr} = ${startTotalMin} min, ${endTimeStr} = ${endTotalMin} min`);
+
     if (startTotalMin >= endTotalMin) {
-        throw new Error('La hora inicio debe ser menor a la hora fin.');
+        console.error(`❌ Invalid time range: ${startTotalMin} >= ${endTotalMin}`);
+        throw new Error(`La hora inicio debe ser menor a la hora fin. (Inicio: ${startTimeStr} = ${startTotalMin}min, Fin: ${endTimeStr} = ${endTotalMin}min)`);
     }
 
     const today = new Date();
+    console.log(`📅 Creating slots starting from: ${formatDateId(today)}`);
 
     // Para cada semana
+    let totalSlotsCreated = 0;
     for (let week = 0; week < weeksCount; week++) {
         // Para cada día seleccionado
         for (const dayOfWeek of selectedDays) {
@@ -496,7 +509,8 @@ async function handleCreateMultipleSlots() {
             // En JS: 0=Domingo, 1=Lunes, ..., 6=Sábado
             // Convertir: dayOfWeek + 1 (excepto si es 6, que es domingo)
             const jsDay = dayOfWeek === 6 ? 0 : dayOfWeek + 1;
-
+            const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+            
             const date = new Date(today);
             
             // Calcular días hasta el próximo día de la semana deseado
@@ -508,6 +522,9 @@ async function handleCreateMultipleSlots() {
             // Sumar los días hasta el próximo día de la semana + las semanas adicionales
             date.setDate(date.getDate() + daysToAdd + (week * 7));
             const dateStr = formatDateId(date);
+            const dayName = dayNames[date.getDay()];
+
+            console.log(`📆 Week ${week}, Creating slots for ${dayName} ${dateStr}`);
 
             // Generar slots de 1 hora en el rango
             let currentTotalMin = startTotalMin;
@@ -516,28 +533,30 @@ async function handleCreateMultipleSlots() {
                 const min = currentTotalMin % 60;
                 const timeStr = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
 
-                console.log(`Creating slot - Date: ${dateStr}, Time: ${timeStr}, HasPatient: ${hasPatient}, PatientTime: ${patientTimeStr}, Match: ${timeStr === patientTimeStr}`);
-
                 // Verificar si está bloqueado
                 const isBlocked = await isTimeInBlockPattern(dateStr, timeStr);
                 if (!isBlocked) {
                     // Si hay paciente y es la hora del paciente, crear como ocupado
                     if (hasPatient && patientTimeStr && timeStr === patientTimeStr && assignedPatientMultiple) {
-                        console.log(`✅ Creating BOOKED slot for patient: ${assignedPatientMultiple}`);
+                        console.log(`  ✅ BOOKED: ${timeStr} for ${assignedPatientMultiple}`);
                         await markSlotAsOccupiedManuallyWithName(dateStr, timeStr, assignedPatientMultiple, assignedPatientMultipleComment);
+                        totalSlotsCreated++;
                     } else {
                         // Si no, crear como disponible
-                        console.log(`✅ Creating AVAILABLE slot`);
+                        console.log(`  ✅ AVAILABLE: ${timeStr}`);
                         await createAvailableSlot(dateStr, timeStr);
+                        totalSlotsCreated++;
                     }
                 } else {
-                    console.log(`⏭️ Slot is blocked, skipping`);
+                    console.log(`  ⏭️ BLOCKED: ${timeStr}`);
                 }
 
                 currentTotalMin += 60; // Sumar 1 hora
             }
         }
     }
+
+    console.log(`🎉 Total slots created: ${totalSlotsCreated}`);
 
     // Limpiar paciente después de crear
     assignedPatientMultiple = null;
