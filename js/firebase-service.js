@@ -485,3 +485,50 @@ async function updateAppointmentDateTime(appointmentId, newDate, newTime) {
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     });
 }
+
+/**
+ * Marca un turno como ocupado manualmente con nombre del paciente
+ * Solo admin - se guarda en bookedSlots con la información del paciente
+ */
+async function markSlotAsOccupiedManuallyWithName(dateStr, timeStr, patientName, comment = null) {
+    if (!availableSlotsRef || !bookedSlotsRef) throw new Error('Firebase no configurado');
+    const slotId = `${dateStr}_${timeStr.replace(':', '')}`;
+    
+    // Si el turno está en disponibles, eliminarlo primero
+    const availableDoc = await availableSlotsRef.doc(slotId).get();
+    if (availableDoc.exists) {
+        await availableSlotsRef.doc(slotId).delete();
+    }
+    
+    // Agregar a ocupados con información del paciente
+    const bookedData = {
+        date: dateStr,
+        time: timeStr,
+        manual: true,
+        patientName: patientName,
+        bookedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    // Agregar comentario si existe
+    if (comment) {
+        bookedData.comment = comment;
+    }
+
+    await bookedSlotsRef.doc(slotId).set(bookedData);
+}
+
+/**
+ * Obtiene un documento de turno ocupado
+ */
+async function getBookedSlotDoc(slotId) {
+    if (!bookedSlotsRef) throw new Error('Firebase no configurado');
+    return await bookedSlotsRef.doc(slotId).get();
+}
+
+/**
+ * Elimina un turno ocupado
+ */
+async function deleteBookedSlot(slotId) {
+    if (!bookedSlotsRef) throw new Error('Firebase no configurado');
+    await bookedSlotsRef.doc(slotId).delete();
+}

@@ -1,10 +1,14 @@
 /**
  * Voltron Lab - Panel de administración (v2)
  * Login, gestión de turnos (crear, eliminar, liberar, reagendar)
- * Con calendario de 15 días y operaciones en tiempo real
+ * Con calendario de 10 días y operaciones en tiempo real
  */
 
 let unsubscribeAdminData = null;
+let assignedPatientSingle = null;
+let assignedPatientMultiple = null;
+let assignedPatientSingleComment = null;
+let assignedPatientMultipleComment = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     onAuthStateChanged((user) => {
@@ -23,30 +27,42 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
     document.getElementById('createSlotForm')?.addEventListener('submit', handleCreateSlot);
     
-    // Manejo de toggle entre turno único y recurrente
+    // Manejo de toggle entre turno único y múltiples
     const slotTypeRadios = document.querySelectorAll('input[name="slotType"]');
     slotTypeRadios.forEach(radio => {
         radio.addEventListener('change', toggleSlotType);
     });
+
+    // Botón asignar paciente (turno único)
+    document.querySelector('.btn-assign-patient-single')?.addEventListener('click', () => openAssignPatientModal('single'));
+    
+    // Checkbox para asignar paciente en múltiples turnos
+    document.getElementById('multipleAssignPatient')?.addEventListener('change', (e) => {
+        document.getElementById('multiplePatientFields').style.display = e.target.checked ? 'block' : 'none';
+    });
+    
+    // Botón asignar paciente (múltiples)
+    document.querySelector('.btn-assign-patient-multiple')?.addEventListener('click', () => openAssignPatientModal('multiple'));
     
     setupMainTabs();
     setupRescheduleModal();
+    setupAssignPatientModal();
 });
 
 
 /**
- * Alterna entre turno único y recurrente
+ * Alterna entre turno único y múltiples
  */
 function toggleSlotType(e) {
     const singleFields = document.getElementById('singleSlotFields');
-    const recurringFields = document.getElementById('recurringSlotFields');
+    const multipleFields = document.getElementById('multipleSlotFields');
     
     if (e.target.value === 'single') {
         singleFields.classList.remove('hidden');
-        recurringFields.classList.add('hidden');
-    } else {
+        multipleFields.classList.add('hidden');
+    } else if (e.target.value === 'multiple') {
         singleFields.classList.add('hidden');
-        recurringFields.classList.remove('hidden');
+        multipleFields.classList.remove('hidden');
     }
 }
 
@@ -135,7 +151,7 @@ async function loadAdminData() {
 }
 
 /**
- * Renderiza el calendario de los próximos 15 días con turnos ocupados
+ * Renderiza el calendario de los próximos 10 días con turnos ocupados
  */
 function renderCalendar(bookedSlots, appointments) {
     const container = document.getElementById('calendarView');
@@ -150,10 +166,10 @@ function renderCalendar(bookedSlots, appointments) {
         });
     }
 
-    // Obtener los próximos 15 días
+    // Obtener los próximos 10 días
     const today = new Date();
     const days = [];
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 10; i++) {
         const date = new Date(today);
         date.setDate(date.getDate() + i);
         days.push(date);
@@ -169,7 +185,7 @@ function renderCalendar(bookedSlots, appointments) {
     }
 
     if (!bookedSlots || bookedSlots.length === 0) {
-        container.innerHTML = '<p class="empty-state">No hay turnos ocupados en los próximos 15 días.</p>';
+        container.innerHTML = '<p class="empty-state">No hay turnos ocupados en los próximos 10 días.</p>';
         return;
     }
 
@@ -180,9 +196,7 @@ function renderCalendar(bookedSlots, appointments) {
         const daySlots = slotsByDate[dateStr] || [];
 
         if (daySlots.length > 0) {
-            const dateFormatted = date.toLocaleDateString('es-AR', { 
-                weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' 
-            });
+            const dateFormatted = formatDateDisplay(date);
 
             html += `<div class="calendar-day">
                 <h3 class="calendar-day-title">${dateFormatted}</h3>
@@ -190,13 +204,23 @@ function renderCalendar(bookedSlots, appointments) {
 
             daySlots.forEach(slot => {
                 const apt = appointmentMap[`${slot.date}_${slot.time.replace(':', '')}`];
-                if (apt && apt.patientName) {
-                    html += `<div class="calendar-slot booked" data-apt-id="${apt.id}" data-date="${slot.date}" data-time="${slot.time}">
+                const patientName = apt?.patientName || slot.patientName;
+                
+                // Mostrar si es appointment o turno manual con nombre
+                if (patientName) {
+                    const aptId = apt?.id || `manual_${slot.date}_${slot.time.replace(':', '')}`;
+                    html += `<div class="calendar-slot booked" data-apt-id="${aptId}" data-date="${slot.date}" data-time="${slot.time}" data-is-manual="${slot.manual || false}">
                         <div class="slot-time">${slot.time}</div>
-                        <div class="slot-patient">${apt.patientName}</div>
-                        <button class="btn btn-info btn-reschedule-slot" data-apt-id="${apt.id}" data-date="${slot.date}" data-time="${slot.time}">
-                            Reagendar
-                        </button>
+                        <div class="slot-patient">${patientName}</div>
+                        ${slot.manual ? '<span class="slot-badge">Manual</span>' : ''}
+                        <div class="slot-actions-calendar">
+                            <button class="btn btn-info btn-reschedule-slot" data-apt-id="${aptId}" data-date="${slot.date}" data-time="${slot.time}" data-is-manual="${slot.manual || false}">
+                                Reagendar
+                            </button>
+                            <button class="btn btn-danger btn-delete-from-calendar" data-apt-id="${aptId}" data-date="${slot.date}" data-time="${slot.time}" data-is-manual="${slot.manual || false}">
+                                ✕ Eliminar
+                            </button>
+                        </div>
                     </div>`;
                 }
             });
@@ -211,11 +235,26 @@ function renderCalendar(bookedSlots, appointments) {
     // Agregar listeners a los botones de reagendar
     container.querySelectorAll('.btn-reschedule-slot').forEach(btn => {
         btn.addEventListener('click', () => {
+            const isManual = btn.dataset.isManual === 'true';
             openRescheduleModal(
                 btn.dataset.aptId,
                 btn.dataset.date,
-                btn.dataset.time
+                btn.dataset.time,
+                isManual
             );
+        });
+    });
+
+    // Agregar listeners a los botones de eliminar
+    container.querySelectorAll('.btn-delete-from-calendar').forEach(btn => {
+        btn.addEventListener('click', async (event) => {
+            event.stopPropagation();
+            const aptId = btn.dataset.aptId;
+            const isManual = btn.dataset.isManual === 'true';
+            const date = btn.dataset.date;
+            const time = btn.dataset.time;
+            
+            await handleDeleteSlotFromCalendar(aptId, isManual, date, time);
         });
     });
 }
@@ -233,9 +272,26 @@ function renderAvailableSlots(slots) {
             return;
         }
 
+        // Filtrar slots: solo de hoy y próximos 10 días
+        const today = new Date();
+        const maxDate = new Date(today);
+        maxDate.setDate(maxDate.getDate() + 10);
+
+        const todayStr = formatDateId(today);
+        const maxDateStr = formatDateId(maxDate);
+
+        const filteredSlots = slots.filter(slot => 
+            slot.date >= todayStr && slot.date <= maxDateStr
+        );
+
+        if (filteredSlots.length === 0) {
+            container.innerHTML = '<p class="empty-state">No hay turnos disponibles en los próximos 10 días.</p>';
+            return;
+        }
+
         // Agrupar turnos por fecha
         const slotsByDate = {};
-        slots.forEach(slot => {
+        filteredSlots.forEach(slot => {
             if (!slotsByDate[slot.date]) slotsByDate[slot.date] = [];
             slotsByDate[slot.date].push(slot);
         });
@@ -246,9 +302,7 @@ function renderAvailableSlots(slots) {
         let html = '';
         sortedDates.forEach(dateStr => {
             const dateObj = new Date(dateStr + 'T00:00:00');
-            const dateFormatted = dateObj.toLocaleDateString('es-AR', {
-                weekday: 'long', day: 'numeric', month: 'long'
-            });
+            const dateFormatted = formatDateDisplay(dateObj);
 
             html += `<div class="available-date-group">
                 <h3 class="date-group-title">${dateFormatted}</h3>`;
@@ -317,26 +371,50 @@ function formatDateId(date) {
 }
 
 /**
- * Maneja la creación de un nuevo turno (único o recurrente)
+ * Formatea fecha para mostrar al usuario (dd/mm/yyyy con día de la semana en español)
+ */
+function formatDateDisplay(date) {
+    const days = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+    const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+    
+    const dayOfWeek = days[date.getDay()];
+    const day = date.getDate();
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    
+    return `${dayOfWeek}, ${day} de ${month} de ${year}`;
+}
+
+/**
+ * Maneja la creación de un nuevo turno (único o múltiples)
  */
 async function handleCreateSlot(e) {
     e.preventDefault();
     
+    console.log('🔵 handleCreateSlot called');
+    
     const slotType = document.querySelector('input[name="slotType"]:checked').value;
+    console.log('Slot type:', slotType);
 
     try {
         if (slotType === 'single') {
+            console.log('📍 Creating single slot');
             await handleCreateSingleSlot();
-        } else {
-            await handleCreateRecurringSlot();
+        } else if (slotType === 'multiple') {
+            console.log('📍 Creating multiple slots');
+            await handleCreateMultipleSlots();
         }
         
         // Limpiar formularios
         document.getElementById('createSlotForm').reset();
+        document.getElementById('multipleAssignPatient').checked = false;
+        document.getElementById('multiplePatientFields').style.display = 'none';
         showAdminToast('✅ Turno(s) creado(s) correctamente.');
+        console.log('✅ Turnos creados exitosamente');
     } catch (error) {
-        console.error('Error creando turno:', error);
-        showAdminToast('❌ Error al crear el turno.');
+        console.error('❌ Error creando turno:', error);
+        console.error('Error message:', error.message);
+        showAdminToast(`❌ ${error.message || 'Error al crear el turno.'}`);
     }
 }
 
@@ -344,10 +422,14 @@ async function handleCreateSlot(e) {
  * Crea un turno único
  */
 async function handleCreateSingleSlot() {
-    const dateStr = document.getElementById('newSlotDate').value;
-    const timeStr = document.getElementById('newSlotTime').value;
+    const dateStr = document.getElementById('singleDate').value;
+    const timeStr = document.getElementById('singleTime').value;
 
-    if (!dateStr || !timeStr) return;
+    console.log('Single slot - Date:', dateStr, 'Time:', timeStr);
+
+    if (!dateStr || !timeStr) {
+        throw new Error('Completa la fecha y hora del turno.');
+    }
 
     // Verificar si está bloqueado
     const isBlocked = await isTimeInBlockPattern(dateStr, timeStr);
@@ -355,24 +437,60 @@ async function handleCreateSingleSlot() {
         throw new Error('Este turno está dentro de un bloqueo recurrente.');
     }
 
-    await createAvailableSlot(dateStr, timeStr);
+    // Si tiene paciente asignado, crear como ocupado (booked manually)
+    if (assignedPatientSingle) {
+        console.log('Creating booked slot with patient:', assignedPatientSingle);
+        await markSlotAsOccupiedManuallyWithName(dateStr, timeStr, assignedPatientSingle, assignedPatientSingleComment);
+        assignedPatientSingle = null;
+        assignedPatientSingleComment = null;
+        document.getElementById('patientInfoSingle').style.display = 'none';
+    } else {
+        // Si no, crear como disponible
+        console.log('Creating available slot');
+        await createAvailableSlot(dateStr, timeStr);
+    }
 }
 
 /**
- * Crea turnos recurrentes
+ * Crea múltiples turnos (varios días y horas)
  */
-async function handleCreateRecurringSlot() {
-    const selectedDays = Array.from(document.querySelectorAll('input[name="recurringDays"]:checked'))
+async function handleCreateMultipleSlots() {
+    const selectedDays = Array.from(document.querySelectorAll('input[name="multipleDays"]:checked'))
         .map(el => parseInt(el.value));
-    const timeStr = document.getElementById('recurringTime').value;
-    const weeksCount = parseInt(document.getElementById('recurringDaysRange').value);
+    const weeksCount = parseInt(document.getElementById('multipleWeeks').value);
+    const startTimeStr = document.getElementById('multipleStartTime').value;
+    const endTimeStr = document.getElementById('multipleEndTime').value;
+    const hasPatient = document.getElementById('multipleAssignPatient').checked;
+    const patientTimeStr = hasPatient ? document.getElementById('multiplePatientTime').value : null;
 
-    if (selectedDays.length === 0 || !timeStr) return;
+    console.log('Multiple slots - Days:', selectedDays, 'Weeks:', weeksCount, 'Start:', startTimeStr, 'End:', endTimeStr, 'HasPatient:', hasPatient, 'PatientTime:', patientTimeStr);
 
-    // Generar dates para cada día seleccionado en las próximas N semanas
+    // Validaciones
+    if (selectedDays.length === 0) {
+        throw new Error('Selecciona al menos un día de la semana.');
+    }
+    if (!startTimeStr || !endTimeStr) {
+        throw new Error('Completa la hora inicio y hora fin.');
+    }
+    if (hasPatient && !patientTimeStr) {
+        throw new Error('Completa la hora del paciente.');
+    }
+
+    // Convertir strings de time a minutos para comparación
+    const [startHour, startMin] = startTimeStr.split(':').map(Number);
+    const [endHour, endMin] = endTimeStr.split(':').map(Number);
+    const startTotalMin = startHour * 60 + startMin;
+    const endTotalMin = endHour * 60 + endMin;
+
+    if (startTotalMin >= endTotalMin) {
+        throw new Error('La hora inicio debe ser menor a la hora fin.');
+    }
+
     const today = new Date();
 
+    // Para cada semana
     for (let week = 0; week < weeksCount; week++) {
+        // Para cada día seleccionado
         for (const dayOfWeek of selectedDays) {
             // dayOfWeek: 0=Lunes, 1=Martes, ..., 6=Domingo
             // En JS: 0=Domingo, 1=Lunes, ..., 6=Sábado
@@ -385,19 +503,46 @@ async function handleCreateRecurringSlot() {
             const currentDay = date.getDay();
             let daysToAdd = jsDay - currentDay;
             if (daysToAdd < 0) daysToAdd += 7;
-            if (week > 0) daysToAdd = 7;
-
-            date.setDate(date.getDate() + (week * 7) + daysToAdd);
-
+            if (daysToAdd === 0 && week === 0) daysToAdd = 0; // Si es hoy y primera semana
+            
+            // Sumar los días hasta el próximo día de la semana + las semanas adicionales
+            date.setDate(date.getDate() + daysToAdd + (week * 7));
             const dateStr = formatDateId(date);
 
-            // Verificar si está bloqueado
-            const isBlocked = await isTimeInBlockPattern(dateStr, timeStr);
-            if (!isBlocked) {
-                await createAvailableSlot(dateStr, timeStr);
+            // Generar slots de 1 hora en el rango
+            let currentTotalMin = startTotalMin;
+            while (currentTotalMin < endTotalMin) {
+                const hour = Math.floor(currentTotalMin / 60);
+                const min = currentTotalMin % 60;
+                const timeStr = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+
+                console.log(`Creating slot - Date: ${dateStr}, Time: ${timeStr}, HasPatient: ${hasPatient}, PatientTime: ${patientTimeStr}, Match: ${timeStr === patientTimeStr}`);
+
+                // Verificar si está bloqueado
+                const isBlocked = await isTimeInBlockPattern(dateStr, timeStr);
+                if (!isBlocked) {
+                    // Si hay paciente y es la hora del paciente, crear como ocupado
+                    if (hasPatient && patientTimeStr && timeStr === patientTimeStr && assignedPatientMultiple) {
+                        console.log(`✅ Creating BOOKED slot for patient: ${assignedPatientMultiple}`);
+                        await markSlotAsOccupiedManuallyWithName(dateStr, timeStr, assignedPatientMultiple, assignedPatientMultipleComment);
+                    } else {
+                        // Si no, crear como disponible
+                        console.log(`✅ Creating AVAILABLE slot`);
+                        await createAvailableSlot(dateStr, timeStr);
+                    }
+                } else {
+                    console.log(`⏭️ Slot is blocked, skipping`);
+                }
+
+                currentTotalMin += 60; // Sumar 1 hora
             }
         }
     }
+
+    // Limpiar paciente después de crear
+    assignedPatientMultiple = null;
+    assignedPatientMultipleComment = null;
+    document.getElementById('patientInfoMultiple').style.display = 'none';
 }
 
 /**
@@ -418,10 +563,11 @@ async function handleDeleteSlot(slotId) {
 /**
  * Abre el modal de reagendar
  */
-function openRescheduleModal(appointmentId, date, time) {
+function openRescheduleModal(appointmentId, date, time, isManual = false) {
     document.getElementById('rescheduleAppointmentId').value = appointmentId;
     document.getElementById('rescheduleDate').value = date;
     document.getElementById('rescheduleTime').value = time;
+    document.getElementById('rescheduleForm').dataset.isManual = isManual;
 
     // Guardar valores antiguos para referencia
     document.getElementById('rescheduleDate').dataset.oldDate = date;
@@ -465,6 +611,7 @@ async function handleReschedule(e) {
     e.preventDefault();
 
     const appointmentId = document.getElementById('rescheduleAppointmentId').value;
+    const isManual = document.getElementById('rescheduleForm').dataset.isManual === 'true';
     const oldDate = document.getElementById('rescheduleDate').dataset.oldDate;
     const oldTime = document.getElementById('rescheduleTime').dataset.oldTime;
     const newDate = document.getElementById('rescheduleDate').value;
@@ -473,19 +620,36 @@ async function handleReschedule(e) {
     if (!newDate || !newTime) return;
 
     try {
-        // Obtener datos de la cita actual
-        const appointments = await getAppointments();
-        const apt = appointments.find(a => a.id === appointmentId);
-        if (!apt) throw new Error('Cita no encontrada');
+        if (isManual) {
+            // Para turnos manuales: eliminar del antiguo lugar y crear en el nuevo
+            const slotId = `${oldDate}_${oldTime.replace(':', '')}`;
+            const bookedDoc = await getBookedSlotDoc(slotId);
+            
+            if (bookedDoc.exists) {
+                const data = bookedDoc.data();
+                const patientName = data.patientName;
+                
+                // Eliminar turno anterior
+                await deleteBookedSlot(slotId);
+                
+                // Crear turno en nueva fecha/hora
+                await markSlotAsOccupiedManuallyWithName(newDate, newTime, patientName);
+            }
+        } else {
+            // Para appointments: reagendar normalmente
+            const appointments = await getAppointments();
+            const apt = appointments.find(a => a.id === appointmentId);
+            if (!apt) throw new Error('Cita no encontrada');
 
-        // Revertir la cita actual
-        await revertAppointment(appointmentId, apt.date, apt.time);
+            // Revertir la cita actual
+            await revertAppointment(appointmentId, apt.date, apt.time);
 
-        // Marcar nuevo slot como ocupado
-        await markSlotAsBooked(newDate, newTime, { id: appointmentId, ...apt });
+            // Marcar nuevo slot como ocupado
+            await markSlotAsBooked(newDate, newTime, { id: appointmentId, ...apt });
 
-        // Actualizar appointment con nueva fecha/hora
-        await updateAppointmentDateTime(appointmentId, newDate, newTime);
+            // Actualizar appointment con nueva fecha/hora
+            await updateAppointmentDateTime(appointmentId, newDate, newTime);
+        }
 
         showAdminToast('✅ Turno reagendado correctamente.');
         document.getElementById('rescheduleModal').classList.add('hidden');
@@ -521,6 +685,131 @@ function setupMainTabs() {
             document.getElementById(`${tab.dataset.tab}Tab`)?.classList.add('active');
         });
     });
+}
+
+/**
+ * Abre el modal de asignar paciente
+ */
+/**
+ * Abre el modal de asignar paciente
+ */
+function openAssignPatientModal(type) {
+    document.getElementById('assignPatientForm').dataset.type = type;
+    document.getElementById('assignPatientName').value = '';
+    document.getElementById('assignPatientLastName').value = '';
+    document.getElementById('assignPatientComment').value = '';
+    document.getElementById('assignPatientModal').classList.remove('hidden');
+}
+
+/**
+ * Configura el modal de asignar paciente
+ */
+function setupAssignPatientModal() {
+    const modal = document.getElementById('assignPatientModal');
+    if (!modal) return;
+
+    document.getElementById('assignPatientModalClose')?.addEventListener('click', () => {
+        modal.classList.add('hidden');
+    });
+
+    document.getElementById('assignPatientModalCancel')?.addEventListener('click', () => {
+        modal.classList.add('hidden');
+    });
+
+    document.getElementById('assignPatientForm')?.addEventListener('submit', handleAssignPatient);
+
+    // Cerrar al clickear fuera
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.classList.add('hidden');
+        }
+    });
+}
+
+/**
+ * Maneja la asignación de paciente
+ */
+/**
+ * Maneja la asignación de paciente
+ */
+/**
+ * Maneja la asignación de paciente
+ */
+function handleAssignPatient(e) {
+    e.preventDefault();
+
+    const type = document.getElementById('assignPatientForm').dataset.type;
+    const name = document.getElementById('assignPatientName').value.trim();
+    const lastName = document.getElementById('assignPatientLastName').value.trim();
+    const comment = document.getElementById('assignPatientComment').value.trim();
+
+    if (!name || !lastName) {
+        showAdminToast('❌ Nombre y apellido son requeridos.');
+        return;
+    }
+
+    const fullName = `${name} ${lastName}`;
+
+    if (type === 'single') {
+        assignedPatientSingle = fullName;
+        assignedPatientSingleComment = comment;
+        document.getElementById('assignedPatientSingle').textContent = fullName;
+        document.getElementById('patientInfoSingle').style.display = 'block';
+    } else if (type === 'multiple') {
+        assignedPatientMultiple = fullName;
+        assignedPatientMultipleComment = comment;
+        document.getElementById('assignedPatientMultiple').textContent = fullName;
+        document.getElementById('patientInfoMultiple').style.display = 'block';
+    }
+
+    showAdminToast(`✅ Paciente asignado: ${fullName}`);
+    document.getElementById('assignPatientModal').classList.add('hidden');
+}
+
+/**
+ * Limpia el paciente asignado (turno único)
+ */
+/**
+ * Limpia el paciente asignado (turno único)
+ */
+function clearPatientSingle() {
+    assignedPatientSingle = null;
+    assignedPatientSingleComment = null;
+    document.getElementById('patientInfoSingle').style.display = 'none';
+    showAdminToast('🗑️ Paciente removido.');
+}
+
+/**
+ * Limpia el paciente asignado (múltiples turnos)
+ */
+function clearPatientMultiple() {
+    assignedPatientMultiple = null;
+    assignedPatientMultipleComment = null;
+    document.getElementById('patientInfoMultiple').style.display = 'none';
+    showAdminToast('🗑️ Paciente removido.');
+}
+
+/**
+ * Maneja la eliminación de un turno del calendario
+ */
+async function handleDeleteSlotFromCalendar(aptId, isManual, date, time) {
+    if (!confirm('¿Eliminar este turno? Se perderá la cita del paciente.')) return;
+
+    try {
+        if (isManual) {
+            // Para turnos manuales: eliminar del bookedSlots
+            const slotId = `${date}_${time.replace(':', '')}`;
+            await deleteBookedSlot(slotId);
+        } else {
+            // Para appointments: revertir la cita
+            await revertAppointment(aptId, date, time);
+        }
+
+        showAdminToast('✅ Turno eliminado correctamente.');
+    } catch (error) {
+        console.error('Error eliminando turno del calendario:', error);
+        showAdminToast('❌ Error al eliminar.');
+    }
 }
 
 /**

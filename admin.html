@@ -60,11 +60,11 @@
                             <div class="radio-group">
                                 <label class="radio-label">
                                     <input type="radio" name="slotType" value="single" checked>
-                                    Turno único
+                                    ☀️ Turno único
                                 </label>
                                 <label class="radio-label">
-                                    <input type="radio" name="slotType" value="recurring">
-                                    Múltiples días (recurrente)
+                                    <input type="radio" name="slotType" value="multiple">
+                                    📅 Múltiples turnos
                                 </label>
                             </div>
                         </div>
@@ -73,54 +73,98 @@
                         <div id="singleSlotFields" class="slot-fields">
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label for="newSlotDate">Fecha</label>
-                                    <input type="date" id="newSlotDate" required>
+                                    <label for="singleDate">Fecha</label>
+                                    <input type="date" id="singleDate">
                                 </div>
                                 <div class="form-group">
-                                    <label for="newSlotTime">Hora</label>
-                                    <input type="time" id="newSlotTime" required>
+                                    <label for="singleTime">Hora</label>
+                                    <input type="time" id="singleTime">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <button type="button" class="btn btn-secondary btn-assign-patient-single">
+                                    👤 Asignar paciente
+                                </button>
+                            </div>
+                            <div class="patient-info-single" id="patientInfoSingle" style="display: none;">
+                                <div class="patient-badge">
+                                    <span id="assignedPatientSingle">-</span>
+                                    <button type="button" class="btn-clear-patient" onclick="clearPatientSingle()">✕</button>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Turno recurrente -->
-                        <div id="recurringSlotFields" class="slot-fields hidden">
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label>Días de la semana</label>
-                                    <div class="checkbox-group">
-                                        <label class="checkbox-label">
-                                            <input type="checkbox" name="recurringDays" value="0"> Lunes
-                                        </label>
-                                        <label class="checkbox-label">
-                                            <input type="checkbox" name="recurringDays" value="1"> Martes
-                                        </label>
-                                        <label class="checkbox-label">
-                                            <input type="checkbox" name="recurringDays" value="2"> Miércoles
-                                        </label>
-                                        <label class="checkbox-label">
-                                            <input type="checkbox" name="recurringDays" value="3"> Jueves
-                                        </label>
-                                        <label class="checkbox-label">
-                                            <input type="checkbox" name="recurringDays" value="4"> Viernes
-                                        </label>
-                                        <label class="checkbox-label">
-                                            <input type="checkbox" name="recurringDays" value="5"> Sábado
-                                        </label>
-                                        <label class="checkbox-label">
-                                            <input type="checkbox" name="recurringDays" value="6"> Domingo
-                                        </label>
-                                    </div>
+                        <!-- Múltiples turnos -->
+                        <div id="multipleSlotFields" class="slot-fields hidden">
+                            <div class="form-group">
+                                <label>Selecciona los días de la semana</label>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="multipleDays" value="0"> Lunes
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="multipleDays" value="1"> Martes
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="multipleDays" value="2"> Miércoles
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="multipleDays" value="3"> Jueves
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="multipleDays" value="4"> Viernes
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="multipleDays" value="5"> Sábado
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" name="multipleDays" value="6"> Domingo
+                                    </label>
                                 </div>
                             </div>
+
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label for="recurringTime">Hora</label>
-                                    <input type="time" id="recurringTime" required>
+                                    <label for="multipleWeeks">Cantidad de semanas</label>
+                                    <input type="number" id="multipleWeeks" min="1" max="52" value="4">
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="multipleStartTime">Hora inicio</label>
+                                    <input type="time" id="multipleStartTime">
                                 </div>
                                 <div class="form-group">
-                                    <label for="recurringDaysRange">Cantidad de semanas</label>
-                                    <input type="number" id="recurringDaysRange" min="1" max="52" value="4" required>
+                                    <label for="multipleEndTime">Hora fin</label>
+                                    <input type="time" id="multipleEndTime">
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="multipleAssignPatient" name="assignPatientMultiple">
+                                    <span>Asignar paciente a una hora específica</span>
+                                </label>
+                            </div>
+
+                            <div id="multiplePatientFields" style="display: none;">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="multiplePatientTime">Hora del paciente</label>
+                                        <input type="time" id="multiplePatientTime">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <button type="button" class="btn btn-secondary btn-assign-patient-multiple">
+                                        👤 Asignar paciente
+                                    </button>
+                                </div>
+                                <div class="patient-info-multiple" id="patientInfoMultiple" style="display: none;">
+                                    <div class="patient-badge">
+                                        <span id="assignedPatientMultiple">-</span>
+                                        <button type="button" class="btn-clear-patient" onclick="clearPatientMultiple()">✕</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -176,6 +220,34 @@
                     <div class="form-row">
                         <button type="submit" class="btn btn-primary">Reagendar</button>
                         <button type="button" class="btn btn-secondary" id="modalCancel">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal para asignar paciente -->
+        <div id="assignPatientModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Asignar paciente</h2>
+                    <button class="modal-close" id="assignPatientModalClose">&times;</button>
+                </div>
+                <form id="assignPatientForm">
+                    <div class="form-group">
+                        <label for="assignPatientName">Nombre</label>
+                        <input type="text" id="assignPatientName" placeholder="Nombre del paciente" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="assignPatientLastName">Apellido</label>
+                        <input type="text" id="assignPatientLastName" placeholder="Apellido del paciente" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="assignPatientComment">Razón de la consulta / Comentario</label>
+                        <textarea id="assignPatientComment" placeholder="Ej: Consulta general, seguimiento, etc." rows="3"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <button type="submit" class="btn btn-primary">Asignar</button>
+                        <button type="button" class="btn btn-secondary" id="assignPatientModalCancel">Cancelar</button>
                     </div>
                 </form>
             </div>
