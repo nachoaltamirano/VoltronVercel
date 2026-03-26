@@ -206,14 +206,28 @@ function renderCalendar(bookedSlots, appointments) {
                 const apt = appointmentMap[`${slot.date}_${slot.time.replace(':', '')}`];
                 const patientName = apt?.patientName || slot.patientName;
                 
-                // Mostrar si es appointment o turno manual con nombre
-                if (patientName) {
+                // Si es bloqueado, mostrar diferente
+                if (slot.blocked) {
+                    html += `<div class="calendar-slot blocked">
+                        <div class="slot-time">${slot.time}</div>
+                        <div class="slot-patient">🔒 Bloqueado</div>
+                        <div class="slot-actions-calendar">
+                            <button class="btn btn-warning btn-unblock-slot" data-date="${slot.date}" data-time="${slot.time}">
+                                🔓 Desbloquear
+                            </button>
+                        </div>
+                    </div>`;
+                } else if (patientName) {
+                    // Mostrar si es appointment o turno manual con nombre
                     const aptId = apt?.id || `manual_${slot.date}_${slot.time.replace(':', '')}`;
                     html += `<div class="calendar-slot booked" data-apt-id="${aptId}" data-date="${slot.date}" data-time="${slot.time}" data-is-manual="${slot.manual || false}">
                         <div class="slot-time">${slot.time}</div>
                         <div class="slot-patient">${patientName}</div>
                         ${slot.manual ? '<span class="slot-badge">Manual</span>' : ''}
                         <div class="slot-actions-calendar">
+                            <button class="btn btn-warning btn-block-from-calendar" data-apt-id="${aptId}" data-date="${slot.date}" data-time="${slot.time}" data-patient-name="${patientName}">
+                                🔒 Bloquear
+                            </button>
                             <button class="btn btn-info btn-reschedule-slot" data-apt-id="${aptId}" data-date="${slot.date}" data-time="${slot.time}" data-is-manual="${slot.manual || false}">
                                 Reagendar
                             </button>
@@ -245,6 +259,19 @@ function renderCalendar(bookedSlots, appointments) {
         });
     });
 
+    // Agregar listeners a los botones de bloquear desde calendario
+    container.querySelectorAll('.btn-block-from-calendar').forEach(btn => {
+        btn.addEventListener('click', async (event) => {
+            event.stopPropagation();
+            const aptId = btn.dataset.aptId;
+            const date = btn.dataset.date;
+            const time = btn.dataset.time;
+            const patientName = btn.dataset.patientName;
+            
+            await handleBlockSlotFromCalendar(aptId, date, time, patientName);
+        });
+    });
+
     // Agregar listeners a los botones de eliminar
     container.querySelectorAll('.btn-delete-from-calendar').forEach(btn => {
         btn.addEventListener('click', async (event) => {
@@ -255,6 +282,17 @@ function renderCalendar(bookedSlots, appointments) {
             const time = btn.dataset.time;
             
             await handleDeleteSlotFromCalendar(aptId, isManual, date, time);
+        });
+    });
+
+    // Agregar listeners a los botones de desbloquear
+    container.querySelectorAll('.btn-unblock-slot').forEach(btn => {
+        btn.addEventListener('click', async (event) => {
+            event.stopPropagation();
+            const date = btn.dataset.date;
+            const time = btn.dataset.time;
+            
+            await handleUnblockSlot(date, time);
         });
     });
 }
@@ -314,6 +352,9 @@ function renderAvailableSlots(slots) {
                         <button class="btn btn-secondary btn-use-slot" data-date="${slot.date}" data-time="${slot.time}">
                             Usar horario
                         </button>
+                        <button class="btn btn-warning btn-block-slot" data-date="${slot.date}" data-time="${slot.time}" data-slot-id="${slot.id}">
+                            🔒 Bloquear
+                        </button>
                         <button class="btn btn-danger btn-delete-slot" data-slot-id="${slot.id}">
                             Eliminar
                         </button>
@@ -336,6 +377,12 @@ function renderAvailableSlots(slots) {
         container.querySelectorAll('.btn-delete-slot').forEach(btn => {
             btn.addEventListener('click', () => {
                 handleDeleteSlot(btn.dataset.slotId);
+            });
+        });
+
+        container.querySelectorAll('.btn-block-slot').forEach(btn => {
+            btn.addEventListener('click', () => {
+                handleBlockSlot(btn.dataset.date, btn.dataset.time, btn.dataset.slotId);
             });
         });
     } catch (error) {
@@ -565,8 +612,48 @@ async function handleCreateMultipleSlots() {
 }
 
 /**
- * Maneja la eliminación de un turno disponible
+ * Maneja el bloqueo de un turno disponible
  */
+async function handleBlockSlot(dateStr, timeStr, slotId) {
+    if (!confirm(`¿Bloquear el turno ${timeStr}? Ya no aparecerá en el calendario disponible.`)) return;
+
+    try {
+        console.log(`🔒 Bloqueando slot: ${dateStr} ${timeStr}`);
+        
+        // Eliminar de disponibles
+        await deleteAvailableSlot(slotId);
+        
+        // Crear como bloqueado
+        await createBlockedSlot(dateStr, timeStr);
+        
+        console.log(`✅ Slot bloqueado exitosamente`);
+        showAdminToast(`🔒 Horario ${timeStr} bloqueado.`);
+    } catch (error) {
+        console.error('❌ Error bloqueando turno:', error);
+        showAdminToast(`❌ Error: ${error.message}`);
+    }
+}
+
+/**
+ * Bloquea un turno que ya tiene paciente asignado
+ */
+async function handleBlockSlotFromCalendar(aptId, dateStr, timeStr, patientName) {
+    if (!confirm(`¿Bloquear el horario ${timeStr}? No aparecerá en Turnos Disponibles para otros clientes.`)) return;
+
+    try {
+        console.log(`🔒 Bloqueando horario con paciente: ${dateStr} ${timeStr} - ${patientName}`);
+        
+        // Solo crear como bloqueado (el appointment se mantiene)
+        await createBlockedSlot(dateStr, timeStr);
+        
+        console.log(`✅ Horario bloqueado exitosamente. Paciente ${patientName} se mantiene.`);
+        showAdminToast(`🔒 Horario ${timeStr} bloqueado. El paciente ${patientName} se conserva.`);
+    } catch (error) {
+        console.error('❌ Error bloqueando turno:', error);
+        showAdminToast(`❌ Error: ${error.message}`);
+    }
+}
+
 async function handleDeleteSlot(slotId) {
     if (!confirm('¿Eliminar este turno?')) return;
 
@@ -576,6 +663,27 @@ async function handleDeleteSlot(slotId) {
     } catch (error) {
         console.error('Error eliminando turno:', error);
         showAdminToast('❌ Error al eliminar.');
+    }
+}
+
+/**
+ * Desbloquea un turno bloqueado del calendario
+ */
+async function handleUnblockSlot(dateStr, timeStr) {
+    if (!confirm(`¿Desbloquear el turno ${timeStr}?`)) return;
+
+    try {
+        console.log(`🔓 Desbloqueando slot: ${dateStr} ${timeStr}`);
+        
+        // Eliminar de bloqueados (booked con blocked: true)
+        const slotId = `${dateStr}_${timeStr.replace(':', '')}`;
+        await db.collection('bookedSlots').doc(slotId).delete();
+        
+        console.log(`✅ Slot desbloqueado exitosamente`);
+        showAdminToast(`🔓 Horario ${timeStr} desbloqueado.`);
+    } catch (error) {
+        console.error('❌ Error desbloqueando turno:', error);
+        showAdminToast(`❌ Error: ${error.message}`);
     }
 }
 

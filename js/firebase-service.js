@@ -83,8 +83,11 @@ async function getBookedSlotsMap() {
     const booked = await getBookedSlots();
     const map = {};
     booked.forEach(slot => {
-        const key = `${slot.date}_${slot.time.replace(':', '')}`;
-        map[key] = true;
+        // NO incluir turnos bloqueados en el mapa públlico
+        if (!slot.blocked) {
+            const key = `${slot.date}_${slot.time.replace(':', '')}`;
+            map[key] = true;
+        }
     });
     return map;
 }
@@ -116,8 +119,11 @@ function buildMapsFromSnapshots(availableSnapshot, bookedSnapshot) {
     const bookedMap = {};
     bookedSnapshot.docs.forEach(doc => {
         const data = doc.data();
-        const key = `${data.date}_${data.time.replace(':', '')}`;
-        bookedMap[key] = true;
+        // NO incluir turnos bloqueados en el mapa público
+        if (!data.blocked) {
+            const key = `${data.date}_${data.time.replace(':', '')}`;
+            bookedMap[key] = true;
+        }
     });
     return { availableMap, bookedMap };
 }

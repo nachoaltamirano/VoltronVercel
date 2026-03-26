@@ -264,6 +264,17 @@
     color: white;
 }
 
+.btn-warning {
+    background: rgba(255, 152, 0, 0.2);
+    color: #ff9800;
+    border: 1px solid #ff9800;
+}
+
+.btn-warning:hover {
+    background: #ff9800;
+    color: white;
+}
+
 .appointment-item-info .name {
     font-weight: 600;
     color: var(--text-primary);
@@ -574,6 +585,12 @@
 
 .calendar-slot.booked {
     opacity: 1;
+}
+
+.calendar-slot.blocked {
+    border-left-color: #ff9800;
+    background: rgba(255, 152, 0, 0.1);
+    opacity: 0.8;
 }
 
 .slot-time {
