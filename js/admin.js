@@ -1,7 +1,7 @@
 /**
- * Voltron Lab - Panel de administración
- * Login, gestión de turnos (crear, eliminar, liberar)
- * Con actualización en tiempo real
+ * Voltron Lab - Panel de administración (v2)
+ * Login, gestión de turnos (crear, eliminar, liberar, reagendar)
+ * Con calendario de 15 días y operaciones en tiempo real
  */
 
 let unsubscribeAdminData = null;
@@ -22,10 +22,33 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('loginForm')?.addEventListener('submit', handleLogin);
     document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
     document.getElementById('createSlotForm')?.addEventListener('submit', handleCreateSlot);
-    document.getElementById('blockPatternForm')?.addEventListener('submit', handleBlockPattern);
     
-    setupTabs();
+    // Manejo de toggle entre turno único y recurrente
+    const slotTypeRadios = document.querySelectorAll('input[name="slotType"]');
+    slotTypeRadios.forEach(radio => {
+        radio.addEventListener('change', toggleSlotType);
+    });
+    
+    setupMainTabs();
+    setupRescheduleModal();
 });
+
+
+/**
+ * Alterna entre turno único y recurrente
+ */
+function toggleSlotType(e) {
+    const singleFields = document.getElementById('singleSlotFields');
+    const recurringFields = document.getElementById('recurringSlotFields');
+    
+    if (e.target.value === 'single') {
+        singleFields.classList.remove('hidden');
+        recurringFields.classList.add('hidden');
+    } else {
+        singleFields.classList.add('hidden');
+        recurringFields.classList.remove('hidden');
+    }
+}
 
 /**
  * Muestra la pantalla de login
@@ -44,7 +67,6 @@ function showAdminPanel(user) {
     document.getElementById('adminUserEmail').textContent = user.email;
     
     loadAdminData();
-    loadBlockPatterns();
     setupAdminRealtimeUpdates();
 }
 
@@ -55,12 +77,8 @@ function setupAdminRealtimeUpdates() {
     if (typeof subscribeToAdminDataRealtime !== 'function') return;
 
     unsubscribeAdminData = subscribeToAdminDataRealtime(({ available, booked, appointments, blockPatterns }) => {
+        renderCalendar(booked, appointments);
         renderAvailableSlots(available);
-        renderBookedSlots(booked);
-        renderAppointments(appointments);
-        if (blockPatterns) {
-            renderBlockPatterns(blockPatterns);
-        }
     });
 }
 
@@ -108,17 +126,98 @@ async function handleLogout() {
  * Carga los datos para el panel admin
  */
 async function loadAdminData() {
-    await loadAvailableSlots();
-    await loadBookedSlots();
-    await loadAppointments();
+    const booked = await getBookedSlots();
+    const appointments = await getAppointments();
+    const available = await getAvailableSlots();
+    
+    renderCalendar(booked, appointments);
+    renderAvailableSlots(available);
 }
 
 /**
- * Carga y muestra turnos disponibles
+ * Renderiza el calendario de los próximos 15 días con turnos ocupados
  */
-async function loadAvailableSlots() {
-    const slots = await getAvailableSlots();
-    renderAvailableSlots(slots);
+function renderCalendar(bookedSlots, appointments) {
+    const container = document.getElementById('calendarView');
+    if (!container) return;
+
+    // Crear mapa de appointments por slot
+    const appointmentMap = {};
+    if (appointments) {
+        appointments.forEach(apt => {
+            const key = `${apt.date}_${apt.time.replace(':', '')}`;
+            appointmentMap[key] = apt;
+        });
+    }
+
+    // Obtener los próximos 15 días
+    const today = new Date();
+    const days = [];
+    for (let i = 0; i < 15; i++) {
+        const date = new Date(today);
+        date.setDate(date.getDate() + i);
+        days.push(date);
+    }
+
+    // Agrupar slots por día
+    const slotsByDate = {};
+    if (bookedSlots) {
+        bookedSlots.forEach(slot => {
+            if (!slotsByDate[slot.date]) slotsByDate[slot.date] = [];
+            slotsByDate[slot.date].push(slot);
+        });
+    }
+
+    if (!bookedSlots || bookedSlots.length === 0) {
+        container.innerHTML = '<p class="empty-state">No hay turnos ocupados en los próximos 15 días.</p>';
+        return;
+    }
+
+    let html = '<div class="calendar-grid">';
+    
+    days.forEach(date => {
+        const dateStr = formatDateId(date);
+        const daySlots = slotsByDate[dateStr] || [];
+
+        if (daySlots.length > 0) {
+            const dateFormatted = date.toLocaleDateString('es-AR', { 
+                weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' 
+            });
+
+            html += `<div class="calendar-day">
+                <h3 class="calendar-day-title">${dateFormatted}</h3>
+                <div class="calendar-slots">`;
+
+            daySlots.forEach(slot => {
+                const apt = appointmentMap[`${slot.date}_${slot.time.replace(':', '')}`];
+                if (apt && apt.patientName) {
+                    html += `<div class="calendar-slot booked" data-apt-id="${apt.id}" data-date="${slot.date}" data-time="${slot.time}">
+                        <div class="slot-time">${slot.time}</div>
+                        <div class="slot-patient">${apt.patientName}</div>
+                        <button class="btn btn-info btn-reschedule-slot" data-apt-id="${apt.id}" data-date="${slot.date}" data-time="${slot.time}">
+                            Reagendar
+                        </button>
+                    </div>`;
+                }
+            });
+
+            html += `</div></div>`;
+        }
+    });
+
+    html += '</div>';
+    container.innerHTML = html;
+
+    // Agregar listeners a los botones de reagendar
+    container.querySelectorAll('.btn-reschedule-slot').forEach(btn => {
+        btn.addEventListener('click', () => {
+            openRescheduleModal(
+                btn.dataset.aptId,
+                btn.dataset.date,
+                btn.dataset.time
+            );
+        });
+    });
 }
 
 /**
@@ -134,306 +233,171 @@ function renderAvailableSlots(slots) {
             return;
         }
 
-        container.innerHTML = slots.map(slot => {
-            const slotId = slot.id;
-            const dateFormatted = formatDateForDisplay(slot.date);
-            return `
-                <div class="slot-item" data-slot-id="${slotId}">
-                    <span class="slot-item-info">${dateFormatted} - ${slot.time}</span>
-                    <div class="slot-item-actions">
-                        <button class="btn btn-danger btn-delete-slot" data-slot-id="${slotId}" data-date="${slot.date}" data-time="${slot.time}">Eliminar</button>
-                        <button class="btn btn-secondary btn-occupy-slot" data-slot-id="${slotId}" data-date="${slot.date}" data-time="${slot.time}">Marcar ocupado</button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-        container.querySelectorAll('.btn-delete-slot').forEach(btn => {
-            btn.addEventListener('click', () => handleDeleteSlot(btn.dataset.slotId));
-        });
-        container.querySelectorAll('.btn-occupy-slot').forEach(btn => {
-            btn.addEventListener('click', () => handleMarkOccupied(btn.dataset.date, btn.dataset.time));
-        });
-    } catch (error) {
-        console.error('Error cargando turnos disponibles:', error);
-        container.innerHTML = '<p class="empty-state">Error al cargar. Verificá Firebase.</p>';
-    }
-}
-
-/**
- * Carga y muestra turnos ocupados
- */
-async function loadBookedSlots() {
-    const slots = await getBookedSlots();
-    renderBookedSlots(slots);
-}
-
-/**
- * Renderiza la lista de turnos ocupados
- */
-function renderBookedSlots(slots) {
-    const container = document.getElementById('bookedSlotsList');
-    if (!container) return;
-
-    try {
-        if (!slots || slots.length === 0) {
-            container.innerHTML = '<p class="empty-state">No hay turnos ocupados.</p>';
-            return;
-        }
-
-        container.innerHTML = slots.map(slot => {
-            const slotId = slot.id;
-            const dateFormatted = formatDateForDisplay(slot.date);
-            let statusLabel = '';
-            
-            // Mostrar tipo de ocupación
-            if (slot.blocked) {
-                statusLabel = ' 🔒 (bloqueado)';
-            } else if (slot.manual) {
-                statusLabel = ' ⏸️ (manual)';
-            } else if (slot.appointmentId) {
-                statusLabel = ' 📅 (reservado)';
-            }
-            
-            return `
-                <div class="slot-item" data-slot-id="${slotId}">
-                    <span class="slot-item-info">${dateFormatted} - ${slot.time}${statusLabel}</span>
-                    <div class="slot-item-actions">
-                        <button class="btn btn-primary btn-release-slot" data-slot-id="${slotId}">Liberar turno</button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-        container.querySelectorAll('.btn-release-slot').forEach(btn => {
-            btn.addEventListener('click', () => handleReleaseSlot(btn.dataset.slotId));
-        });
-    } catch (error) {
-        console.error('Error cargando turnos ocupados:', error);
-        container.innerHTML = '<p class="empty-state">Error al cargar.</p>';
-    }
-}
-
-/**
- * Carga y muestra las reservas (appointments)
- */
-async function loadAppointments() {
-    const appointments = await getAppointments();
-    renderAppointments(appointments);
-}
-
-/**
- * Renderiza la lista de reservas
- */
-function renderAppointments(appointments) {
-    const container = document.getElementById('appointmentsList');
-    if (!container) return;
-
-    try {
-        if (!appointments || appointments.length === 0) {
-            container.innerHTML = '<p class="empty-state">No hay reservas.</p>';
-            return;
-        }
-
-        // Ordenar por fecha más reciente primero
-        appointments.sort((a, b) => {
-            const dateA = `${a.date} ${a.time}`;
-            const dateB = `${b.date} ${b.time}`;
-            return dateB.localeCompare(dateA);
+        // Agrupar turnos por fecha
+        const slotsByDate = {};
+        slots.forEach(slot => {
+            if (!slotsByDate[slot.date]) slotsByDate[slot.date] = [];
+            slotsByDate[slot.date].push(slot);
         });
 
-        container.innerHTML = appointments.map(apt => {
-            const dateFormatted = formatDateForDisplay(apt.date);
-            return `
-                <div class="appointment-item">
-                    <div class="appointment-item-info">
-                        <span class="name">${apt.patientName}</span>
-                        <div class="detail">${dateFormatted} - ${apt.time}</div>
-                        <div class="detail">${apt.reason}</div>
-                        <div class="detail">📞 ${apt.patientPhone}</div>
-                    </div>
-                    <div class="slot-item-actions">
-                        <button class="btn btn-info btn-export-calendar" data-apt-name="${apt.patientName}" data-apt-date="${apt.date}" data-apt-time="${apt.time}" data-apt-reason="${apt.reason}" data-apt-phone="${apt.patientPhone}" style="background-color: #4285F4;">
-                            📅 Exportar
+        // Ordenar fechas
+        const sortedDates = Object.keys(slotsByDate).sort();
+
+        let html = '';
+        sortedDates.forEach(dateStr => {
+            const dateObj = new Date(dateStr + 'T00:00:00');
+            const dateFormatted = dateObj.toLocaleDateString('es-AR', {
+                weekday: 'long', day: 'numeric', month: 'long'
+            });
+
+            html += `<div class="available-date-group">
+                <h3 class="date-group-title">${dateFormatted}</h3>`;
+
+            slotsByDate[dateStr].forEach(slot => {
+                html += `<div class="slot-item available">
+                    <span class="slot-time">${slot.time}</span>
+                    <div class="slot-actions">
+                        <button class="btn btn-secondary btn-use-slot" data-date="${slot.date}" data-time="${slot.time}">
+                            Usar horario
                         </button>
-                        <button class="btn btn-danger btn-revert-appointment" data-apt-id="${apt.id}" data-apt-date="${apt.date}" data-apt-time="${apt.time}">
-                            ↩️ Revertir
+                        <button class="btn btn-danger btn-delete-slot" data-slot-id="${slot.id}">
+                            Eliminar
                         </button>
                     </div>
-                </div>
-            `;
-        }).join('');
+                </div>`;
+            });
 
-        container.querySelectorAll('.btn-export-calendar').forEach(btn => {
+            html += '</div>';
+        });
+
+        container.innerHTML = html;
+
+        // Agregar listeners
+        container.querySelectorAll('.btn-use-slot').forEach(btn => {
             btn.addEventListener('click', () => {
-                openGoogleCalendarWithEvent(
-                    btn.dataset.aptName,
-                    btn.dataset.aptDate,
-                    btn.dataset.aptTime,
-                    btn.dataset.aptReason,
-                    btn.dataset.aptPhone
-                );
-                showAdminToast('Se abrió Google Calendar. Guardá la cita.');
+                preloadSlotInForm(btn.dataset.date, btn.dataset.time);
             });
         });
 
-        container.querySelectorAll('.btn-revert-appointment').forEach(btn => {
-            btn.addEventListener('click', () => handleRevertAppointment(btn.dataset.aptId, btn.dataset.aptDate, btn.dataset.aptTime));
+        container.querySelectorAll('.btn-delete-slot').forEach(btn => {
+            btn.addEventListener('click', () => {
+                handleDeleteSlot(btn.dataset.slotId);
+            });
         });
     } catch (error) {
-        console.error('Error cargando reservas:', error);
+        console.error('Error renderizando turnos disponibles:', error);
         container.innerHTML = '<p class="empty-state">Error al cargar.</p>';
     }
 }
 
 /**
- * Formatea fecha para mostrar
+ * Precarga un slot en el formulario
  */
-function formatDateForDisplay(dateStr) {
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    return date.toLocaleDateString('es-AR', { 
-        weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' 
-    });
+function preloadSlotInForm(date, time) {
+    // Cambiar a tipo "single"
+    const singleRadio = document.querySelector('input[name="slotType"][value="single"]');
+    singleRadio.click();
+
+    // Llenar los campos
+    document.getElementById('newSlotDate').value = date;
+    document.getElementById('newSlotTime').value = time;
+
+    // Scroll al formulario
+    document.querySelector('.admin-section').scrollIntoView({ behavior: 'smooth' });
 }
 
 /**
- * Maneja la creación de un nuevo turno
+ * Formatea fecha a YYYY-MM-DD
+ */
+function formatDateId(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+/**
+ * Maneja la creación de un nuevo turno (único o recurrente)
  */
 async function handleCreateSlot(e) {
     e.preventDefault();
-    const dateInput = document.getElementById('newSlotDate');
-    const timeInput = document.getElementById('newSlotTime');
+    
+    const slotType = document.querySelector('input[name="slotType"]:checked').value;
 
-    const dateStr = dateInput.value;
-    const timeStr = timeInput.value;
+    try {
+        if (slotType === 'single') {
+            await handleCreateSingleSlot();
+        } else {
+            await handleCreateRecurringSlot();
+        }
+        
+        // Limpiar formularios
+        document.getElementById('createSlotForm').reset();
+        showAdminToast('✅ Turno(s) creado(s) correctamente.');
+    } catch (error) {
+        console.error('Error creando turno:', error);
+        showAdminToast('❌ Error al crear el turno.');
+    }
+}
+
+/**
+ * Crea un turno único
+ */
+async function handleCreateSingleSlot() {
+    const dateStr = document.getElementById('newSlotDate').value;
+    const timeStr = document.getElementById('newSlotTime').value;
 
     if (!dateStr || !timeStr) return;
 
-    try {
-        // Verificar si la hora está bloqueada por patrón recurrente
-        const isBlocked = await isTimeInBlockPattern(dateStr, timeStr);
-        if (isBlocked) {
-            showAdminToast('⚠️ Este turno está dentro de un bloqueo recurrente.');
-            return;
+    // Verificar si está bloqueado
+    const isBlocked = await isTimeInBlockPattern(dateStr, timeStr);
+    if (isBlocked) {
+        throw new Error('Este turno está dentro de un bloqueo recurrente.');
+    }
+
+    await createAvailableSlot(dateStr, timeStr);
+}
+
+/**
+ * Crea turnos recurrentes
+ */
+async function handleCreateRecurringSlot() {
+    const selectedDays = Array.from(document.querySelectorAll('input[name="recurringDays"]:checked'))
+        .map(el => parseInt(el.value));
+    const timeStr = document.getElementById('recurringTime').value;
+    const weeksCount = parseInt(document.getElementById('recurringDaysRange').value);
+
+    if (selectedDays.length === 0 || !timeStr) return;
+
+    // Generar dates para cada día seleccionado en las próximas N semanas
+    const today = new Date();
+
+    for (let week = 0; week < weeksCount; week++) {
+        for (const dayOfWeek of selectedDays) {
+            // dayOfWeek: 0=Lunes, 1=Martes, ..., 6=Domingo
+            // En JS: 0=Domingo, 1=Lunes, ..., 6=Sábado
+            // Convertir: dayOfWeek + 1 (excepto si es 6, que es domingo)
+            const jsDay = dayOfWeek === 6 ? 0 : dayOfWeek + 1;
+
+            const date = new Date(today);
+            
+            // Calcular días hasta el próximo día de la semana deseado
+            const currentDay = date.getDay();
+            let daysToAdd = jsDay - currentDay;
+            if (daysToAdd < 0) daysToAdd += 7;
+            if (week > 0) daysToAdd = 7;
+
+            date.setDate(date.getDate() + (week * 7) + daysToAdd);
+
+            const dateStr = formatDateId(date);
+
+            // Verificar si está bloqueado
+            const isBlocked = await isTimeInBlockPattern(dateStr, timeStr);
+            if (!isBlocked) {
+                await createAvailableSlot(dateStr, timeStr);
+            }
         }
-
-        await createAvailableSlot(dateStr, timeStr);
-        showAdminToast('Turno creado correctamente.');
-        dateInput.value = '';
-        timeInput.value = '';
-    } catch (error) {
-        console.error('Error creando turno:', error);
-        showAdminToast('Error al crear el turno.');
     }
-}
-
-/**
- * Maneja la creación de un bloqueo recurrente
- */
-async function handleBlockPattern(e) {
-    e.preventDefault();
-    const daySelect = document.getElementById('blockPatternDay');
-    const startTimeInput = document.getElementById('blockPatternStartTime');
-    const endTimeInput = document.getElementById('blockPatternEndTime');
-    const reasonInput = document.getElementById('blockPatternReason');
-
-    const dayOfWeek = parseInt(daySelect.value);
-    const startTime = startTimeInput.value;
-    const endTime = endTimeInput.value;
-    const reason = reasonInput.value || '';
-
-    if (!startTime || !endTime) return;
-    
-    // Validar que la hora de inicio sea menor que la de fin
-    if (startTime >= endTime) {
-        showAdminToast('La hora de inicio debe ser menor que la de fin.');
-        return;
-    }
-
-    try {
-        await createBlockPattern(dayOfWeek, startTime, endTime, reason);
-        showAdminToast(`Bloqueo creado: ${getDayName(dayOfWeek)} de ${startTime} a ${endTime}`);
-        daySelect.value = '';
-        startTimeInput.value = '';
-        endTimeInput.value = '';
-        reasonInput.value = '';
-    } catch (error) {
-        console.error('Error creando bloqueo:', error);
-        showAdminToast('Error al crear el bloqueo.');
-    }
-}
-
-/**
- * Carga y muestra los bloqueos recurrentes
- */
-async function loadBlockPatterns() {
-    const patterns = await getBlockPatterns();
-    renderBlockPatterns(patterns);
-}
-
-/**
- * Renderiza la lista de bloqueos recurrentes
- */
-function renderBlockPatterns(patterns) {
-    const container = document.getElementById('blockPatternsList');
-    if (!container) return;
-
-    try {
-        if (!patterns || patterns.length === 0) {
-            container.innerHTML = '<p class="empty-state">No hay bloqueos recurrentes.</p>';
-            return;
-        }
-
-        container.innerHTML = `
-            <h3>Bloqueos activos:</h3>
-            <div class="slots-list">
-                ${patterns.map(pattern => {
-                    const dayName = getDayName(pattern.dayOfWeek);
-                    const reason = pattern.reason ? ` - ${pattern.reason}` : '';
-                    return `
-                        <div class="slot-item">
-                            <span class="slot-item-info">
-                                ${dayName} de ${pattern.startTime} a ${pattern.endTime}${reason}
-                            </span>
-                            <div class="slot-item-actions">
-                                <button class="btn btn-danger btn-delete-pattern" data-pattern-id="${pattern.id}">Eliminar</button>
-                            </div>
-                        </div>
-                    `;
-                }).join('')}
-            </div>
-        `;
-
-        container.querySelectorAll('.btn-delete-pattern').forEach(btn => {
-            btn.addEventListener('click', () => handleDeleteBlockPattern(btn.dataset.patternId));
-        });
-    } catch (error) {
-        console.error('Error renderizando bloqueos:', error);
-    }
-}
-
-/**
- * Maneja la eliminación de un bloqueo recurrente
- */
-async function handleDeleteBlockPattern(patternId) {
-    if (!confirm('¿Eliminar este bloqueo recurrente?')) return;
-
-    try {
-        await deleteBlockPattern(patternId);
-        showAdminToast('Bloqueo eliminado.');
-    } catch (error) {
-        console.error('Error eliminando bloqueo:', error);
-        showAdminToast('Error al eliminar.');
-    }
-}
-
-/**
- * Devuelve el nombre del día de la semana
- */
-function getDayName(dayOfWeek) {
-    const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-    return days[dayOfWeek] || '';
 }
 
 /**
@@ -444,65 +408,113 @@ async function handleDeleteSlot(slotId) {
 
     try {
         await deleteAvailableSlot(slotId);
-        showAdminToast('Turno eliminado.');
+        showAdminToast('✅ Turno eliminado.');
     } catch (error) {
         console.error('Error eliminando turno:', error);
-        showAdminToast('Error al eliminar.');
+        showAdminToast('❌ Error al eliminar.');
     }
 }
 
 /**
- * Maneja marcar un turno como ocupado manualmente
+ * Abre el modal de reagendar
  */
-async function handleMarkOccupied(dateStr, timeStr) {
-    if (!confirm('¿Marcar este turno como ocupado?')) return;
+function openRescheduleModal(appointmentId, date, time) {
+    document.getElementById('rescheduleAppointmentId').value = appointmentId;
+    document.getElementById('rescheduleDate').value = date;
+    document.getElementById('rescheduleTime').value = time;
+
+    // Guardar valores antiguos para referencia
+    document.getElementById('rescheduleDate').dataset.oldDate = date;
+    document.getElementById('rescheduleTime').dataset.oldTime = time;
+
+    // Limpiar validaciones
+    document.getElementById('rescheduleDate').min = formatDateId(new Date());
+
+    document.getElementById('rescheduleModal').classList.remove('hidden');
+}
+
+/**
+ * Configura el modal de reagendar
+ */
+function setupRescheduleModal() {
+    const modal = document.getElementById('rescheduleModal');
+    if (!modal) return;
+
+    document.getElementById('modalClose')?.addEventListener('click', () => {
+        modal.classList.add('hidden');
+    });
+
+    document.getElementById('modalCancel')?.addEventListener('click', () => {
+        modal.classList.add('hidden');
+    });
+
+    document.getElementById('rescheduleForm')?.addEventListener('submit', handleReschedule);
+
+    // Cerrar al clickear fuera
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.classList.add('hidden');
+        }
+    });
+}
+
+/**
+ * Maneja el reagendamiento de una cita
+ */
+async function handleReschedule(e) {
+    e.preventDefault();
+
+    const appointmentId = document.getElementById('rescheduleAppointmentId').value;
+    const oldDate = document.getElementById('rescheduleDate').dataset.oldDate;
+    const oldTime = document.getElementById('rescheduleTime').dataset.oldTime;
+    const newDate = document.getElementById('rescheduleDate').value;
+    const newTime = document.getElementById('rescheduleTime').value;
+
+    if (!newDate || !newTime) return;
 
     try {
-        await markSlotAsOccupiedManually(dateStr, timeStr);
-        showAdminToast('Turno marcado como ocupado.');
+        // Obtener datos de la cita actual
+        const appointments = await getAppointments();
+        const apt = appointments.find(a => a.id === appointmentId);
+        if (!apt) throw new Error('Cita no encontrada');
+
+        // Revertir la cita actual
+        await revertAppointment(appointmentId, apt.date, apt.time);
+
+        // Marcar nuevo slot como ocupado
+        await markSlotAsBooked(newDate, newTime, { id: appointmentId, ...apt });
+
+        // Actualizar appointment con nueva fecha/hora
+        await updateAppointmentDateTime(appointmentId, newDate, newTime);
+
+        showAdminToast('✅ Turno reagendado correctamente.');
+        document.getElementById('rescheduleModal').classList.add('hidden');
     } catch (error) {
-        console.error('Error:', error);
-        showAdminToast('Error al actualizar.');
+        console.error('Error reagendando:', error);
+        showAdminToast('❌ Error al reagendar.');
     }
 }
 
 /**
- * Maneja liberar un turno ocupado
+ * Actualiza la fecha y hora de un appointment
  */
-async function handleReleaseSlot(slotId) {
-    if (!confirm('¿Liberar este turno? Volverá a estar disponible.')) return;
-
-    try {
-        await releaseSlot(slotId);
-        showAdminToast('Turno liberado correctamente.');
-    } catch (error) {
-        console.error('Error liberando turno:', error);
-        showAdminToast('Error al liberar.');
-    }
+async function updateAppointmentDateTime(appointmentId, newDate, newTime) {
+    const appointmentsRef = db.collection('appointments');
+    await appointmentsRef.doc(appointmentId).update({
+        date: newDate,
+        time: newTime,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
 }
 
 /**
- * Maneja la reversión de una cita (cancelar reserva)
+ * Configura las pestañas principales
  */
-async function handleRevertAppointment(appointmentId, dateStr, timeStr) {
-    if (!confirm('¿Revertir esta cita? El turno volverá a estar disponible y la reserva se eliminará.')) return;
-
-    try {
-        await revertAppointment(appointmentId, dateStr, timeStr);
-        showAdminToast('Reserva revertida. El turno está disponible nuevamente.');
-    } catch (error) {
-        console.error('Error revertiendo cita:', error);
-        showAdminToast('Error al revertir la reserva.');
-    }
-}
-
-/**
- * Configura las pestañas
- */
-function setupTabs() {
-    document.querySelectorAll('.tab').forEach(tab => {
+function setupMainTabs() {
+    const tabs = document.querySelectorAll('.tab-main');
+    tabs.forEach(tab => {
         tab.addEventListener('click', () => {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            tabs.forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             
             tab.classList.add('active');

@@ -473,3 +473,15 @@ function subscribeToBlockPatternsRealtime(callback) {
         callback(patterns);
     });
 }
+
+/**
+ * Actualiza la fecha y hora de un appointment
+ */
+async function updateAppointmentDateTime(appointmentId, newDate, newTime) {
+    if (!appointmentsRef) throw new Error('Firebase no configurado');
+    await appointmentsRef.doc(appointmentId).update({
+        date: newDate,
+        time: newTime,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+}

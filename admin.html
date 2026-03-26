@@ -51,57 +51,82 @@
             <div class="container">
                 <h1 class="admin-title">Gestión de Turnos</h1>
 
-                <!-- Crear nuevo turno -->
+                <!-- Formulario para crear turnos -->
                 <section class="admin-section">
                     <h2>Crear nuevo turno</h2>
                     <form id="createSlotForm" class="create-slot-form">
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="newSlotDate">Fecha</label>
-                                <input type="date" id="newSlotDate" required>
+                        <div class="form-group">
+                            <label>Tipo de turno</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="slotType" value="single" checked>
+                                    Turno único
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="slotType" value="recurring">
+                                    Múltiples días (recurrente)
+                                </label>
                             </div>
-                            <div class="form-group">
-                                <label for="newSlotTime">Hora</label>
-                                <input type="time" id="newSlotTime" required>
-                            </div>
-                            <button type="submit" class="btn btn-primary">Agregar turno</button>
                         </div>
-                    </form>
-                </section>
 
-                <!-- Bloqueos recurrentes -->
-                <section class="admin-section">
-                    <h2>Bloqueos recurrentes (ej: Todos los martes de 16 a 17)</h2>
-                    <form id="blockPatternForm" class="create-slot-form">
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="blockPatternDay">Día de la semana</label>
-                                <select id="blockPatternDay" required>
-                                    <option value="">Seleccionar...</option>
-                                    <option value="0">Lunes</option>
-                                    <option value="1">Martes</option>
-                                    <option value="2">Miércoles</option>
-                                    <option value="3">Jueves</option>
-                                    <option value="4">Viernes</option>
-                                    <option value="5">Sábado</option>
-                                    <option value="6">Domingo</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="blockPatternStartTime">Desde</label>
-                                <input type="time" id="blockPatternStartTime" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="blockPatternEndTime">Hasta</label>
-                                <input type="time" id="blockPatternEndTime" required>
+                        <!-- Turno único -->
+                        <div id="singleSlotFields" class="slot-fields">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="newSlotDate">Fecha</label>
+                                    <input type="date" id="newSlotDate" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="newSlotTime">Hora</label>
+                                    <input type="time" id="newSlotTime" required>
+                                </div>
                             </div>
                         </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="blockPatternReason">Motivo (opcional)</label>
-                                <input type="text" id="blockPatternReason" placeholder="Ej: Matías">
+
+                        <!-- Turno recurrente -->
+                        <div id="recurringSlotFields" class="slot-fields hidden">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Días de la semana</label>
+                                    <div class="checkbox-group">
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" name="recurringDays" value="0"> Lunes
+                                        </label>
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" name="recurringDays" value="1"> Martes
+                                        </label>
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" name="recurringDays" value="2"> Miércoles
+                                        </label>
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" name="recurringDays" value="3"> Jueves
+                                        </label>
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" name="recurringDays" value="4"> Viernes
+                                        </label>
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" name="recurringDays" value="5"> Sábado
+                                        </label>
+                                        <label class="checkbox-label">
+                                            <input type="checkbox" name="recurringDays" value="6"> Domingo
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
-                            <button type="submit" class="btn btn-danger">Crear bloqueo</button>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="recurringTime">Hora</label>
+                                    <input type="time" id="recurringTime" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="recurringDaysRange">Cantidad de semanas</label>
+                                    <input type="number" id="recurringDaysRange" min="1" max="52" value="4" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <button type="submit" class="btn btn-primary">Agregar turno(s)</button>
                         </div>
                     </form>
 
@@ -109,26 +134,52 @@
                     <div id="blockPatternsList" style="margin-top: 20px;"></div>
                 </section>
 
-                <!-- Vista de turnos -->
+                <!-- Vista principal con solapas -->
                 <section class="admin-section">
-                    <div class="tabs">
-                        <button class="tab active" data-tab="available">Turnos disponibles</button>
-                        <button class="tab" data-tab="booked">Turnos ocupados</button>
-                        <button class="tab" data-tab="appointments">Reservas</button>
+                    <div class="tabs-main">
+                        <button class="tab-main active" data-tab="calendar">📅 Calendario</button>
+                        <button class="tab-main" data-tab="available">📋 Turnos Disponibles</button>
                     </div>
 
-                    <div id="availableTab" class="tab-content active">
+                    <!-- Solapa Calendario -->
+                    <div id="calendarTab" class="tab-content active">
+                        <div id="calendarContainer">
+                            <div id="calendarView" class="calendar-view"></div>
+                        </div>
+                    </div>
+
+                    <!-- Solapa Turnos Disponibles -->
+                    <div id="availableTab" class="tab-content">
                         <div id="availableSlotsList" class="slots-list"></div>
-                    </div>
-                    <div id="bookedTab" class="tab-content">
-                        <div id="bookedSlotsList" class="slots-list"></div>
-                    </div>
-                    <div id="appointmentsTab" class="tab-content">
-                        <div id="appointmentsList" class="appointments-list"></div>
                     </div>
                 </section>
             </div>
         </main>
+
+        <!-- Modal para reagendar -->
+        <div id="rescheduleModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Reagendar turno</h2>
+                    <button class="modal-close" id="modalClose">&times;</button>
+                </div>
+                <form id="rescheduleForm">
+                    <input type="hidden" id="rescheduleAppointmentId">
+                    <div class="form-group">
+                        <label for="rescheduleDate">Nueva fecha</label>
+                        <input type="date" id="rescheduleDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="rescheduleTime">Nueva hora</label>
+                        <input type="time" id="rescheduleTime" required>
+                    </div>
+                    <div class="form-row">
+                        <button type="submit" class="btn btn-primary">Reagendar</button>
+                        <button type="button" class="btn btn-secondary" id="modalCancel">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
     <!-- Toast -->
