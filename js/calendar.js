@@ -61,9 +61,8 @@ function renderCalendar() {
     // Renderizar mes actual
     renderMonthGrid('calendarGrid', today.getFullYear(), today.getMonth(), '#currentMonthDisplay');
     
-    // Renderizar mes siguiente
-    const nextMonth = new Date(today);
-    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    // Renderizar mes siguiente (usando el primer día para evitar problemas con días que no existen)
+    const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
     renderMonthGrid('calendarGridNext', nextMonth.getFullYear(), nextMonth.getMonth(), '#nextMonthDisplay');
 }
 
