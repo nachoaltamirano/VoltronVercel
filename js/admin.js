@@ -11,10 +11,16 @@ let assignedPatientSingleComment = null;
 let assignedPatientMultipleComment = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+    const ADMIN_EMAIL = 'voltronlab2@gmail.com';
+    
     onAuthStateChanged((user) => {
-        if (user) {
+        if (user && user.email === ADMIN_EMAIL) {
             showAdminPanel(user);
         } else {
+            // Desautenticar si es un usuario no autorizado
+            if (user) {
+                adminLogout();
+            }
             showLoginScreen();
             if (unsubscribeAdminData) {
                 unsubscribeAdminData();
@@ -103,11 +109,19 @@ function setupAdminRealtimeUpdates() {
  */
 async function handleLogin(e) {
     e.preventDefault();
-    const email = document.getElementById('adminEmail').value;
+    const email = document.getElementById('adminEmail').value.trim();
     const password = document.getElementById('adminPassword').value;
     const errorEl = document.getElementById('loginError');
+    const ADMIN_EMAIL = 'voltronlab2@gmail.com';
 
     errorEl.classList.add('hidden');
+
+    // Validar que el email sea el admin permitido
+    if (email !== ADMIN_EMAIL) {
+        errorEl.textContent = 'Acceso denegado. Solo el administrador puede ingresar.';
+        errorEl.classList.remove('hidden');
+        return;
+    }
 
     try {
         await adminLogin(email, password);
