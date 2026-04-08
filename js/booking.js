@@ -51,20 +51,43 @@ function initAuthFlow() {
     document.getElementById('authModal')?.querySelector('.modal-overlay')?.addEventListener('click', closeAuthModal);
     document.getElementById('authForm')?.addEventListener('submit', handleAuthSubmit);
 
-    onAuthStateChanged(handleAuthStateChanged);
+    // Inicializar listener de autenticación
+    initAuthStateListener();
+}
 
-    // Handle redirect result for Google sign-in
-    if (auth) {
-        auth.getRedirectResult().catch((error) => {
-            console.error('Google redirect error:', error);
-            const errorEl = document.getElementById('authError');
-            if (errorEl) {
-                errorEl.textContent = 'Error en el ingreso con Google. Verificá la configuración.';
-                errorEl.classList.remove('hidden');
-                openAuthModal('login'); // Open modal to show error
+/**
+ * Inicializa el listener de estado de autenticación
+ * Maneja correctamente el flujo de redirect de Google Sign-In
+ */
+function initAuthStateListener() {
+    if (!auth) {
+        console.warn('Firebase auth no inicializado');
+        return;
+    }
+
+    // Registrar listener que se dispara cuando cambia el estado de autenticación
+    onAuthStateChanged(async (user) => {
+        try {
+            await handleAuthStateChanged(user);
+        } catch (error) {
+            console.error('Error en handleAuthStateChanged:', error);
+        }
+    });
+
+    // Manejo especial para redirect de Google (cuando vuelve de Google)
+    auth.getRedirectResult()
+        .then((result) => {
+            if (result.user) {
+                console.log('Google redirect successful:', result.user.email);
+                // El listener de onAuthStateChanged ya se dispará con el usuario
+            }
+        })
+        .catch((error) => {
+            // Los errores aquí son generalmente normales (no hay redirect pending)
+            if (error.code !== 'auth/no-current-user' && error.code !== 'auth/unauthorized-domain') {
+                console.warn('Redirect result error:', error.code, error.message);
             }
         });
-    }
 }
 
 /**
@@ -247,33 +270,44 @@ function closeAuthModal() {
 }
 
 async function handleAuthStateChanged(user) {
+    console.log('Auth state changed:', user ? `User ${user.email}` : 'No user');
+    
     const statusEl = document.getElementById('userStatus');
     const authEmailEl = document.getElementById('authEmailDisplay');
     const authButton = document.getElementById('authButton');
     const profileLink = document.getElementById('profileLink');
 
     if (user) {
+        console.log('User logged in:', user.email);
         closeAuthModal(); // Cerrar modal si estaba abierto
         showToast('Ingresaste exitosamente. Ya podés reservar.');
         authButton?.classList.add('hidden');
         statusEl?.classList.remove('hidden');
         profileLink?.classList.remove('hidden');
         if (authEmailEl) authEmailEl.textContent = `Bienvenido ${user.email}`;
-        currentUserProfile = await getUserProfile(user.uid);
-        if (!currentUserProfile) {
-            const profileData = {
-                email: user.email || '',
-                nombre: user.displayName || '',
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            };
-            await saveUserProfile(user.uid, profileData);
+        
+        try {
             currentUserProfile = await getUserProfile(user.uid);
-        }
-        if (pendingBookingSlot) {
-            openBookingModal(pendingBookingSlot);
-            pendingBookingSlot = null;
+            if (!currentUserProfile) {
+                console.log('Creating new user profile for:', user.email);
+                const profileData = {
+                    email: user.email || '',
+                    nombre: user.displayName || '',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+                await saveUserProfile(user.uid, profileData);
+                currentUserProfile = await getUserProfile(user.uid);
+            }
+            if (pendingBookingSlot) {
+                openBookingModal(pendingBookingSlot);
+                pendingBookingSlot = null;
+            }
+        } catch (error) {
+            console.error('Error setting up user profile:', error);
+            showToast('Tienes sesión iniciada pero hubo un error cargando tu perfil.');
         }
     } else {
+        console.log('User logged out');
         currentUserProfile = null;
         authButton?.classList.remove('hidden');
         statusEl?.classList.add('hidden');
@@ -341,8 +375,25 @@ function handleGoogleAuth() {
         errorEl.classList.add('hidden');
     }
 
-    // signInWithRedirect redirige la página, no se puede await
-    signInWithGoogle();
+    try {
+        // signInWithRedirect redirige la página
+        // Cuando vuelve de Google, onAuthStateChanged se dispara automáticamente
+        signInWithGoogle().catch((error) => {
+            console.error('Error en Google auth:', error);
+            if (errorEl) {
+                let message = 'Error al iniciar sesión con Google.';
+                if (error.code === 'auth/unauthorized-domain') {
+                    message = 'Este dominio no está autorizado. Contactá con soporte.';
+                } else if (error.code === 'auth/cancelled-popup-request') {
+                    message = 'Cancelaste el ingreso con Google.';
+                }
+                errorEl.textContent = message;
+                errorEl.classList.remove('hidden');
+            }
+        });
+    } catch (error) {
+        console.error('Error en Google auth:', error);
+    }
 }
 
 /**

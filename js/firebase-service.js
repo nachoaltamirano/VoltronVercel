@@ -478,10 +478,20 @@ async function loginUser(email, password) {
 
 async function signInWithGoogle() {
     if (!auth) throw new Error('Firebase no configurado');
+    
     const provider = new firebase.auth.GoogleAuthProvider();
-    // Usar redirect en lugar de popup para evitar bloqueadores de popups
-    await auth.signInWithRedirect(provider);
-    // Nota: signInWithRedirect redirige la página, el resultado se maneja en onAuthStateChanged
+    // Configurar scope para obtener el email del usuario
+    provider.addScope('profile');
+    provider.addScope('email');
+    
+    try {
+        // Usar redirect en lugar de popup para evitar bloqueadores de popups
+        await auth.signInWithRedirect(provider);
+        // Nota: signInWithRedirect redirige la página, el resultado se maneja en onAuthStateChanged
+    } catch (error) {
+        console.error('signInWithGoogle error:', error.code, error.message);
+        throw error;
+    }
 }
 
 async function signOutUser() {
