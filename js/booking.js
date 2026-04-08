@@ -52,6 +52,7 @@ function initAuthFlow() {
 
     // Inicializar listener de autenticación
     onAuthStateChanged(handleAuthStateChanged);
+}
 
 /**
  * Abre el modal de reserva o pide login si no hay usuario
