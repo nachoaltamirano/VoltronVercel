@@ -950,6 +950,130 @@ body {
     color: var(--accent);
 }
 
+/* ========== Panel Mi Perfil ========== */
+.profile-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg-primary);
+    overflow-y: auto;
+    z-index: 50;
+    padding-top: 80px;
+    padding-bottom: 2rem;
+}
+
+.profile-content {
+    animation: slideUp 0.3s ease;
+}
+
+.profile-content h2 {
+    font-size: 1.8rem;
+    margin-bottom: 2rem;
+    color: var(--text-primary);
+}
+
+.profile-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+}
+
+.stat-label {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+.sessions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.session-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    transition: all var(--transition);
+}
+
+.session-card.rated {
+    border-color: var(--success);
+    background: rgba(0, 212, 170, 0.05);
+}
+
+.session-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.session-number {
+    font-weight: 600;
+    color: var(--accent);
+}
+
+.session-date {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.session-details {
+    color: var(--text-secondary);
+}
+
+.session-details p {
+    margin-bottom: 0.75rem;
+    line-height: 1.5;
+}
+
+/* ========== Rating Estrellas ========== */
+.rating-stars {
+    display: flex;
+    gap: 0.5rem;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    width: fit-content;
+}
+
+.rating-stars input {
+    display: none;
+}
+
+.rating-stars .star {
+    font-size: 2rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.rating-stars input:checked ~ .star,
+.rating-stars .star:hover,
+.rating-stars .star:hover ~ .star {
+    color: var(--accent);
+}
+
 /* ========== Responsive ========== */
 
 /* Tablet y abajo */

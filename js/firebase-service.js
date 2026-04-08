@@ -551,8 +551,25 @@ async function createBlockPattern(dayOfWeek, startTime, endTime, reason) {
 }
 
 /**
- * Obtiene todos los patrones de bloqueo
+ * Actualiza las calificaciones de una cita
  */
+async function updateAppointmentRating(appointmentId, rating, feedback) {
+    if (!appointmentsRef) throw new Error('Firebase no configurado');
+    await appointmentsRef.doc(appointmentId).update({
+        rating: rating,
+        feedback: feedback,
+        ratedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+}
+
+/**
+ * Obtiene las sesiones de un usuario
+ */
+async function getUserSessions(userId) {
+    if (!appointmentsRef) return [];
+    const snapshot = await appointmentsRef.where('userId', '==', userId).where('status', '==', 'confirmed').get();
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
 async function getBlockPatterns() {
     if (!blockPatternsRef) return [];
     const snapshot = await blockPatternsRef.get();

@@ -33,6 +33,7 @@
                 <a href="#calendario">Turnos</a>
                 <a href="#info">Información</a>
                 <a href="#contacto">Contacto</a>
+                <a href="#" id="profileLink" class="profile-link hidden">Mi Perfil</a>
             </nav>
             <div class="auth-actions">
                 <button id="authButton" class="btn btn-secondary">Ingresar / Crear cuenta</button>
@@ -168,6 +169,63 @@
                 </div>
                 <p id="authError" class="form-error hidden"></p>
             </form>
+        </div>
+    </div>
+
+    <!-- Modal de calificación de sesión -->
+    <div id="ratingModal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <button id="closeRatingModal" class="modal-close" aria-label="Cerrar">&times;</button>
+            <h3 class="modal-title">Calificar sesión</h3>
+            <form id="ratingForm" class="booking-form">
+                <div class="form-group">
+                    <label>Rendimiento *</label>
+                    <div class="rating-stars">
+                        <input type="radio" name="rating" value="1" id="star1">
+                        <label for="star1" class="star">★</label>
+                        <input type="radio" name="rating" value="2" id="star2">
+                        <label for="star2" class="star">★</label>
+                        <input type="radio" name="rating" value="3" id="star3">
+                        <label for="star3" class="star">★</label>
+                        <input type="radio" name="rating" value="4" id="star4">
+                        <label for="star4" class="star">★</label>
+                        <input type="radio" name="rating" value="5" id="star5">
+                        <label for="star5" class="star">★</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="feedback">Tu opinión (opcional)</label>
+                    <textarea id="feedback" name="feedback" rows="4" placeholder="¿Cómo te sentiste? ¿Qué te pareció la sesión?"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" id="cancelRating" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Enviar calificación</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Panel Mi Perfil -->
+    <div id="profilePanel" class="profile-panel hidden">
+        <div class="container">
+            <button id="closeProfile" class="btn btn-secondary" style="margin-bottom: 2rem;">← Volver</button>
+            <div class="profile-content">
+                <h2>Mi Perfil</h2>
+                <div class="profile-stats">
+                    <div class="stat-card">
+                        <div class="stat-value" id="sessionsCount">0</div>
+                        <div class="stat-label">Sesiones completadas</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="avgRating">-</div>
+                        <div class="stat-label">Calificación promedio</div>
+                    </div>
+                </div>
+
+                <h3 style="margin-top: 2rem; margin-bottom: 1rem;">Historial de sesiones</h3>
+                <div id="sessionsList" class="sessions-list"></div>
+            </div>
         </div>
     </div>
 

@@ -34,6 +34,7 @@ function initBooking() {
     form?.addEventListener('submit', handleBookingSubmit);
 
     initAuthFlow();
+    initProfilePanel();
 }
 
 /**
@@ -96,6 +97,117 @@ function prefillBookingForm() {
     }
 }
 
+function initProfilePanel() {
+    document.getElementById('profileLink')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        openProfilePanel();
+    });
+    document.getElementById('closeProfile')?.addEventListener('click', closeProfilePanel);
+    document.getElementById('closeRatingModal')?.addEventListener('click', closeRatingModal);
+    document.getElementById('cancelRating')?.addEventListener('click', closeRatingModal);
+    document.getElementById('ratingForm')?.addEventListener('submit', handleRatingSubmit);
+}
+
+function openProfilePanel() {
+    document.getElementById('profilePanel').classList.remove('hidden');
+    document.getElementById('calendario').classList.add('hidden');
+    loadSessionHistory();
+}
+
+function closeProfilePanel() {
+    document.getElementById('profilePanel').classList.add('hidden');
+    document.getElementById('calendario').classList.remove('hidden');
+}
+
+async function loadSessionHistory() {
+    const authUser = getCurrentUser();
+    if (!authUser) return;
+
+    try {
+        const appointments = await getAppointments();
+        const userAppointments = appointments.filter(apt => apt.userId === authUser.uid && apt.status === 'confirmed');
+        
+        document.getElementById('sessionsCount').textContent = userAppointments.length;
+        
+        const ratings = userAppointments.filter(apt => apt.rating).map(apt => apt.rating);
+        if (ratings.length > 0) {
+            const avgRating = (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1);
+            document.getElementById('avgRating').textContent = `${avgRating} ★`;
+        }
+
+        const sessionsList = document.getElementById('sessionsList');
+        sessionsList.innerHTML = '';
+        
+        userAppointments.forEach((apt, index) => {
+            const sessionNum = index + 1;
+            const hasRating = apt.rating ? 'rated' : '';
+            const ratingDisplay = apt.rating ? `${apt.rating} ★` : 'Sin calificar';
+            
+            let html = `
+                <div class="session-card ${hasRating}">
+                    <div class="session-header">
+                        <span class="session-number">Sesión #${sessionNum}</span>
+                        <span class="session-date">${formatDateTime(apt.date, apt.time)}</span>
+                    </div>
+                    <div class="session-details">
+                        <p><strong>Motivo:</strong> ${apt.reason || 'N/A'}</p>
+                        <p><strong>Calificación:</strong> ${ratingDisplay}</p>`;
+            
+            if (apt.feedback) {
+                html += `<p><strong>Tu opinión:</strong> ${apt.feedback}</p>`;
+            }
+            
+            if (!apt.rating) {
+                html += `<button class="btn btn-primary btn-small" onclick="window.location.hash=''; openRatingModal(${JSON.stringify(apt).replace(/"/g, '&quot;')}, ${sessionNum})">Calificar sesión</button>`;
+            }
+            
+            html += `</div></div>`;
+            sessionsList.innerHTML += html;
+        });
+    } catch (error) {
+        console.error('Error cargando historial:', error);
+    }
+}
+
+let pendingRatingAppointment = null;
+let pendingRatingSessionNum = null;
+
+function openRatingModal(appointment, sessionNum) {
+    pendingRatingAppointment = appointment;
+    pendingRatingSessionNum = sessionNum;
+    document.getElementById('ratingModal').classList.remove('hidden');
+}
+
+function closeRatingModal() {
+    document.getElementById('ratingModal').classList.add('hidden');
+    document.getElementById('ratingForm').reset();
+    pendingRatingAppointment = null;
+    pendingRatingSessionNum = null;
+}
+
+async function handleRatingSubmit(e) {
+    e.preventDefault();
+    if (!pendingRatingAppointment) return;
+
+    const rating = document.querySelector('input[name="rating"]:checked')?.value;
+    const feedback = document.getElementById('feedback')?.value || '';
+
+    if (!rating) {
+        showToast('Por favor seleccioná una calificación.');
+        return;
+    }
+
+    try {
+        await updateAppointmentRating(pendingRatingAppointment.id, parseInt(rating), feedback);
+        showToast('¡Gracias por tu calificación!');
+        closeRatingModal();
+        loadSessionHistory();
+    } catch (error) {
+        console.error('Error guardando calificación:', error);
+        showToast('Error al guardar la calificación.');
+    }
+}
+
 function setAuthMode(mode) {
     authMode = mode;
     document.getElementById('loginTab')?.classList.toggle('active', mode === 'login');
@@ -125,10 +237,12 @@ async function handleAuthStateChanged(user) {
     const statusEl = document.getElementById('userStatus');
     const authEmailEl = document.getElementById('authEmailDisplay');
     const authButton = document.getElementById('authButton');
+    const profileLink = document.getElementById('profileLink');
 
     if (user) {
         authButton?.classList.add('hidden');
         statusEl?.classList.remove('hidden');
+        profileLink?.classList.remove('hidden');
         if (authEmailEl) authEmailEl.textContent = `Bienvenido ${user.email}`;
         currentUserProfile = await getUserProfile(user.uid);
         if (!currentUserProfile) {
@@ -148,6 +262,7 @@ async function handleAuthStateChanged(user) {
         currentUserProfile = null;
         authButton?.classList.remove('hidden');
         statusEl?.classList.add('hidden');
+        profileLink?.classList.add('hidden');
     }
 }
 
