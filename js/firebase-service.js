@@ -479,8 +479,9 @@ async function loginUser(email, password) {
 async function signInWithGoogle() {
     if (!auth) throw new Error('Firebase no configurado');
     const provider = new firebase.auth.GoogleAuthProvider();
-    const userCredential = await auth.signInWithPopup(provider);
-    return userCredential.user;
+    // Usar redirect en lugar de popup para evitar bloqueadores de popups
+    await auth.signInWithRedirect(provider);
+    // Nota: signInWithRedirect redirige la página, el resultado se maneja en onAuthStateChanged
 }
 
 async function signOutUser() {

@@ -52,6 +52,19 @@ function initAuthFlow() {
     document.getElementById('authForm')?.addEventListener('submit', handleAuthSubmit);
 
     onAuthStateChanged(handleAuthStateChanged);
+
+    // Handle redirect result for Google sign-in
+    if (auth) {
+        auth.getRedirectResult().catch((error) => {
+            console.error('Google redirect error:', error);
+            const errorEl = document.getElementById('authError');
+            if (errorEl) {
+                errorEl.textContent = 'Error en el ingreso con Google. Verificá la configuración.';
+                errorEl.classList.remove('hidden');
+                openAuthModal('login'); // Open modal to show error
+            }
+        });
+    }
 }
 
 /**
@@ -240,6 +253,8 @@ async function handleAuthStateChanged(user) {
     const profileLink = document.getElementById('profileLink');
 
     if (user) {
+        closeAuthModal(); // Cerrar modal si estaba abierto
+        showToast('Ingresaste exitosamente. Ya podés reservar.');
         authButton?.classList.add('hidden');
         statusEl?.classList.remove('hidden');
         profileLink?.classList.remove('hidden');
@@ -320,27 +335,14 @@ async function handleAuthSubmit(e) {
     }
 }
 
-async function handleGoogleAuth() {
+function handleGoogleAuth() {
     const errorEl = document.getElementById('authError');
     if (errorEl) {
         errorEl.classList.add('hidden');
     }
 
-    try {
-        await signInWithGoogle();
-        showToast('Ingresaste con Google. Ya podés reservar.');
-        closeAuthModal();
-    } catch (error) {
-        console.error('Error Google auth:', error);
-        let message = 'No se pudo iniciar sesión con Google.';
-        if (error.code === 'auth/popup-closed-by-user') {
-            message = 'La ventana de Google se cerró antes de completar el ingreso.';
-        }
-        if (errorEl) {
-            errorEl.textContent = message;
-            errorEl.classList.remove('hidden');
-        }
-    }
+    // signInWithRedirect redirige la página, no se puede await
+    signInWithGoogle();
 }
 
 /**
