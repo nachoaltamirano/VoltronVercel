@@ -556,6 +556,17 @@ async function updateAppointmentRating(appointmentId, rating, feedback) {
 }
 
 /**
+ * Actualiza los comentarios/detalles de la clase
+ */
+async function updateClassDetails(appointmentId, adminComments) {
+    if (!appointmentsRef) throw new Error('Firebase no configurado');
+    await appointmentsRef.doc(appointmentId).update({
+        adminComments: adminComments,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+}
+
+/**
  * Obtiene las sesiones de un usuario
  */
 async function getUserSessions(userId) {

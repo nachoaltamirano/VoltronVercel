@@ -149,8 +149,13 @@ async function loadSessionHistory() {
                         <span class="session-date">${formatDateTime(apt.date, apt.time)}</span>
                     </div>
                     <div class="session-details">
-                        <p><strong>Motivo:</strong> ${apt.reason || 'N/A'}</p>
-                        <p><strong>Calificación:</strong> ${ratingDisplay}</p>`;
+                        <p><strong>Motivo:</strong> ${apt.reason || 'N/A'}</p>`;
+            
+            if (apt.adminComments) {
+                html += `<p><strong>📝 Detalles de la clase:</strong> ${apt.adminComments}</p>`;
+            }
+            
+            html += `<p><strong>Calificación:</strong> ${ratingDisplay}</p>`;
             
             if (apt.feedback) {
                 html += `<p><strong>Tu opinión:</strong> ${apt.feedback}</p>`;

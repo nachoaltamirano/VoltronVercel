@@ -53,6 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupMainTabs();
     setupRescheduleModal();
     setupAssignPatientModal();
+    setupClassDetailsModal();
 });
 
 
@@ -242,6 +243,9 @@ function renderCalendar(bookedSlots, appointments) {
                         <div class="slot-patient">${patientName}</div>
                         ${slot.manual ? '<span class="slot-badge">Manual</span>' : ''}
                         <div class="slot-actions-calendar">
+                            <button class="btn btn-info btn-class-details" data-apt-id="${aptId}" data-date="${slot.date}" data-time="${slot.time}" data-patient-name="${patientName}">
+                                ✏️ Detalles
+                            </button>
                             <button class="btn btn-warning btn-block-from-calendar" data-apt-id="${aptId}" data-date="${slot.date}" data-time="${slot.time}" data-patient-name="${patientName}">
                                 🔒 Bloquear
                             </button>
@@ -273,6 +277,19 @@ function renderCalendar(bookedSlots, appointments) {
                 btn.dataset.time,
                 isManual
             );
+        });
+    });
+
+    // Agregar listeners a los botones de detalles de clase
+    container.querySelectorAll('.btn-class-details').forEach(btn => {
+        btn.addEventListener('click', async (event) => {
+            event.stopPropagation();
+            const aptId = btn.dataset.aptId;
+            const date = btn.dataset.date;
+            const time = btn.dataset.time;
+            const patientName = btn.dataset.patientName;
+            
+            await openClassDetailsModal(aptId, date, time, patientName);
         });
     });
 
@@ -930,6 +947,94 @@ function handleAssignPatient(e) {
 
     showAdminToast(`✅ Paciente asignado: ${fullName}`);
     document.getElementById('assignPatientModal').classList.add('hidden');
+}
+
+/**
+ * Configura el modal de detalles de clase
+ */
+function setupClassDetailsModal() {
+    const modal = document.getElementById('classDetailsModal');
+    if (!modal) return;
+
+    document.getElementById('classDetailsModalClose')?.addEventListener('click', () => {
+        modal.classList.add('hidden');
+    });
+
+    document.getElementById('classDetailsModalCancel')?.addEventListener('click', () => {
+        modal.classList.add('hidden');
+    });
+
+    document.getElementById('classDetailsForm')?.addEventListener('submit', handleClassDetailsSubmit);
+
+    // Cerrar al clickear fuera
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.classList.add('hidden');
+        }
+    });
+}
+
+/**
+ * Abre el modal de detalles de clase
+ */
+async function openClassDetailsModal(aptId, date, time, patientName) {
+    try {
+        document.getElementById('classDetailsAptId').value = aptId;
+        document.getElementById('classDetailsPatientName').value = patientName;
+        document.getElementById('classDetailsDateTime').value = formatDateTime(date, time);
+        
+        // Obtener la cita para cargar los comentarios existentes y el número de sesión
+        const appointments = await getAppointments();
+        const appointment = appointments.find(apt => apt.id === aptId);
+        
+        if (appointment) {
+            document.getElementById('classDetailsComments').value = appointment.adminComments || '';
+            document.getElementById('classDetailsSessionNum').value = `Sesión #${getSessionNumber(appointment.userId, appointments)}`;
+        } else {
+            document.getElementById('classDetailsComments').value = '';
+            document.getElementById('classDetailsSessionNum').value = 'N/A';
+        }
+        
+        document.getElementById('classDetailsModal').classList.remove('hidden');
+    } catch (error) {
+        console.error('Error opening class details modal:', error);
+        showAdminToast('❌ Error al abrir los detalles de la clase.');
+    }
+}
+
+/**
+ * Calcula el número de sesión para un usuario
+ */
+function getSessionNumber(userId, appointments) {
+    if (!userId || !appointments) return 0;
+    const userSessions = appointments.filter(apt => apt.userId === userId && apt.status === 'confirmed');
+    return userSessions.length;
+}
+
+/**
+ * Maneja el envío del formulario de detalles de clase
+ */
+async function handleClassDetailsSubmit(e) {
+    e.preventDefault();
+
+    const aptId = document.getElementById('classDetailsAptId').value;
+    const comments = document.getElementById('classDetailsComments').value.trim();
+
+    if (!aptId) {
+        showAdminToast('❌ Error: No se encontró la cita.');
+        return;
+    }
+
+    try {
+        await updateClassDetails(aptId, comments);
+        showAdminToast('✅ Detalles de la clase guardados.');
+        document.getElementById('classDetailsModal').classList.add('hidden');
+        // Recargar calendario
+        loadAdminData();
+    } catch (error) {
+        console.error('Error saving class details:', error);
+        showAdminToast('❌ Error al guardar los detalles.');
+    }
 }
 
 /**

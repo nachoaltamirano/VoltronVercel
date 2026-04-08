@@ -225,29 +225,34 @@
             </div>
         </div>
 
-        <!-- Modal para asignar paciente -->
-        <div id="assignPatientModal" class="modal hidden">
+        <!-- Modal para editar detalles de la clase -->
+        <div id="classDetailsModal" class="modal hidden">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2>Asignar paciente</h2>
-                    <button class="modal-close" id="assignPatientModalClose">&times;</button>
+                    <h2>Detalles de la clase</h2>
+                    <button class="modal-close" id="classDetailsModalClose">&times;</button>
                 </div>
-                <form id="assignPatientForm">
+                <form id="classDetailsForm">
+                    <input type="hidden" id="classDetailsAptId">
                     <div class="form-group">
-                        <label for="assignPatientName">Nombre</label>
-                        <input type="text" id="assignPatientName" placeholder="Nombre del paciente" required>
+                        <label for="classDetailsPatientName">Paciente</label>
+                        <input type="text" id="classDetailsPatientName" readonly style="background-color: #f0f0f0;">
                     </div>
                     <div class="form-group">
-                        <label for="assignPatientLastName">Apellido</label>
-                        <input type="text" id="assignPatientLastName" placeholder="Apellido del paciente" required>
+                        <label for="classDetailsDateTime">Fecha y Hora</label>
+                        <input type="text" id="classDetailsDateTime" readonly style="background-color: #f0f0f0;">
                     </div>
                     <div class="form-group">
-                        <label for="assignPatientComment">Razón de la consulta / Comentario</label>
-                        <textarea id="assignPatientComment" placeholder="Ej: Consulta general, seguimiento, etc." rows="3"></textarea>
+                        <label for="classDetailsComments">Comentarios / Detalles de la clase</label>
+                        <textarea id="classDetailsComments" placeholder="Ej: Sesión de 60 min, enfoque en relajación, temas a tratar, etc." rows="5"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="classDetailsSessionNum">Número de sesión</label>
+                        <input type="text" id="classDetailsSessionNum" readonly style="background-color: #f0f0f0;">
                     </div>
                     <div class="form-row">
-                        <button type="submit" class="btn btn-primary">Asignar</button>
-                        <button type="button" class="btn btn-secondary" id="assignPatientModalCancel">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Guardar detalles</button>
+                        <button type="button" class="btn btn-secondary" id="classDetailsModalCancel">Cancelar</button>
                     </div>
                 </form>
             </div>
