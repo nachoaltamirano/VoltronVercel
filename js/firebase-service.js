@@ -447,14 +447,27 @@ async function createAppointment(dateStr, timeStr, patientData) {
 }
 
 async function registerUser(email, password) {
-    if (!auth || !usersRef) throw new Error('Firebase no configurado');
-    const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-    const user = userCredential.user;
-    await usersRef.doc(user.uid).set({
-        email: user.email,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    return user;
+    if (!auth) throw new Error('Firebase Auth no configurado');
+    if (!usersRef) throw new Error('Firebase Firestore no configurado');
+    
+    try {
+        const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+        
+        try {
+            await usersRef.doc(user.uid).set({
+                email: user.email,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        } catch (firestoreError) {
+            console.error('Error guardando perfil en Firestore:', firestoreError);
+            throw firestoreError;
+        }
+        return user;
+    } catch (authError) {
+        console.error('Error en createUserWithEmailAndPassword:', authError);
+        throw authError;
+    }
 }
 
 async function loginUser(email, password) {

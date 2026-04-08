@@ -180,7 +180,10 @@ async function handleAuthSubmit(e) {
         }
         closeAuthModal();
     } catch (error) {
-        console.error('Error auth:', error);
+        console.error('Error auth detallado:', error);
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        
         let message = 'Error al procesar la solicitud.';
         if (error.code === 'auth/email-already-in-use') {
             message = 'El email ya está en uso.';
@@ -190,6 +193,10 @@ async function handleAuthSubmit(e) {
             message = 'La contraseña debe tener al menos 6 caracteres.';
         } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
             message = 'Email o contraseña incorrectos.';
+        } else if (error.code === 'permission-denied') {
+            message = 'Permiso denegado. Revisa las reglas de Firestore.';
+        } else if (error.message) {
+            message = error.message;
         }
         if (errorEl) {
             errorEl.textContent = message;
