@@ -34,6 +34,13 @@
                 <a href="#info">Información</a>
                 <a href="#contacto">Contacto</a>
             </nav>
+            <div class="auth-actions">
+                <button id="authButton" class="btn btn-secondary">Ingresar / Crear cuenta</button>
+                <div id="userStatus" class="auth-status hidden">
+                    <span id="authEmailDisplay"></span>
+                    <button id="logoutHeaderBtn" class="btn btn-secondary btn-small">Cerrar sesión</button>
+                </div>
+            </div>
         </div>
     </header>
 
@@ -129,6 +136,37 @@
                     <button type="button" id="cancelBooking" class="btn btn-secondary">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Confirmar reserva</button>
                 </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal de autenticación -->
+    <div id="authModal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <button id="closeAuthModal" class="modal-close" aria-label="Cerrar">&times;</button>
+            <h3 class="modal-title">Ingresar o crear cuenta</h3>
+            <div class="auth-tabs">
+                <button type="button" id="loginTab" class="auth-tab active">Ingresar</button>
+                <button type="button" id="registerTab" class="auth-tab">Crear cuenta</button>
+            </div>
+            <form id="authForm" class="booking-form">
+                <div class="form-group">
+                    <label for="authEmail">Email *</label>
+                    <input type="email" id="authEmail" name="authEmail" required placeholder="tu@email.com">
+                </div>
+                <div class="form-group">
+                    <label for="authPassword">Contraseña *</label>
+                    <input type="password" id="authPassword" name="authPassword" required placeholder="Mínimo 6 caracteres">
+                </div>
+                <div class="form-group">
+                    <button type="button" id="googleAuthBtn" class="btn btn-google">Ingresar con Google</button>
+                </div>
+                <div class="form-actions">
+                    <button type="button" id="cancelAuth" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" id="authSubmit" class="btn btn-primary">Ingresar</button>
+                </div>
+                <p id="authError" class="form-error hidden"></p>
             </form>
         </div>
     </div>

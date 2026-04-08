@@ -4,7 +4,7 @@
  */
 
 // Inicializar Firebase (solo si está configurado)
-let db, auth, availableSlotsRef, bookedSlotsRef, appointmentsRef, blockPatternsRef;
+let db, auth, availableSlotsRef, bookedSlotsRef, appointmentsRef, blockPatternsRef, usersRef;
 
 const config = typeof firebaseConfig !== 'undefined' ? firebaseConfig : (window.firebaseConfig || {});
 if (config.apiKey && config.apiKey !== 'TU_API_KEY') {
@@ -15,6 +15,7 @@ if (config.apiKey && config.apiKey !== 'TU_API_KEY') {
     bookedSlotsRef = db.collection('bookedSlots');
     appointmentsRef = db.collection('appointments');
     blockPatternsRef = db.collection('blockPatterns');
+    usersRef = db.collection('users');
 } else {
     console.warn('Voltron Lab: Configurá Firebase en js/config.js para usar el sitio.');
 }
@@ -411,7 +412,7 @@ async function createAppointment(dateStr, timeStr, patientData) {
     
     try {
         console.log('1️⃣ Creando documento en appointments...');
-        const docRef = await appointmentsRef.add({
+        const appointmentData = {
             date: dateStr,
             time: timeStr,
             patientName: patientData.nombre,
@@ -420,7 +421,11 @@ async function createAppointment(dateStr, timeStr, patientData) {
             reason: patientData.motivo,
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             status: 'confirmed'
-        });
+        };
+        if (patientData.userId) {
+            appointmentData.userId = patientData.userId;
+        }
+        const docRef = await appointmentsRef.add(appointmentData);
         console.log('✅ Documento creado:', docRef.id);
 
         console.log('2️⃣ Marcando turno como ocupado...');
@@ -439,6 +444,48 @@ async function createAppointment(dateStr, timeStr, patientData) {
         });
         throw error;
     }
+}
+
+async function registerUser(email, password) {
+    if (!auth || !usersRef) throw new Error('Firebase no configurado');
+    const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+    const user = userCredential.user;
+    await usersRef.doc(user.uid).set({
+        email: user.email,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    return user;
+}
+
+async function loginUser(email, password) {
+    if (!auth) throw new Error('Firebase no configurado');
+    const userCredential = await auth.signInWithEmailAndPassword(email, password);
+    return userCredential.user;
+}
+
+async function signInWithGoogle() {
+    if (!auth) throw new Error('Firebase no configurado');
+    const provider = new firebase.auth.GoogleAuthProvider();
+    const userCredential = await auth.signInWithPopup(provider);
+    return userCredential.user;
+}
+
+async function signOutUser() {
+    if (auth) await auth.signOut();
+}
+
+async function getUserProfile(userId) {
+    if (!usersRef) throw new Error('Firebase no configurado');
+    const doc = await usersRef.doc(userId).get();
+    return doc.exists ? { id: doc.id, ...doc.data() } : null;
+}
+
+async function saveUserProfile(userId, profileData) {
+    if (!usersRef) throw new Error('Firebase no configurado');
+    await usersRef.doc(userId).set({
+        ...profileData,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
 }
 
 /**

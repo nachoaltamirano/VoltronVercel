@@ -6,22 +6,25 @@ service cloud.firestore {
     // Pacientes: delete (al reservar, se elimina de disponibles)
     match /availableSlots/{doc} {
       allow read: if true;
-      allow create, update: if request.auth != null;
-      allow delete: if true;  // Pacientes pueden "eliminar" al reservar
+      allow create, update, delete: if request.auth != null;
     }
     // Turnos ocupados: lectura pública
     // Admin: create, update, delete
     // Pacientes: create (al reservar, se agrega a ocupados)
     match /bookedSlots/{doc} {
       allow read: if true;
-      allow create: if true;  // Pacientes pueden crear al reservar
+      allow create: if request.auth != null;
       allow update, delete: if request.auth != null;
     }
     // Reservas: pacientes crean, admin lee/actualiza/elimina
     match /appointments/{doc} {
       allow read: if request.auth != null;
-      allow create: if true;
+      allow create: if request.auth != null;
       allow update, delete: if request.auth != null;
+    }
+    // Perfil de usuario: cada usuario puede leer y escribir su propio documento
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     // Bloqueos recurrentes: lectura pública (para verificar), admin crea/elimina
     match /blockPatterns/{doc} {

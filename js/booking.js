@@ -4,6 +4,13 @@
  */
 
 /**
+ * Estado de autenticación y perfil del usuario
+ */
+let currentUserProfile = null;
+let pendingBookingSlot = null;
+let authMode = 'login';
+
+/**
  * Inicializa el flujo de reserva
  */
 function initBooking() {
@@ -25,12 +32,38 @@ function initBooking() {
     modal?.querySelector('.modal-overlay')?.addEventListener('click', closeBookingModal);
 
     form?.addEventListener('submit', handleBookingSubmit);
+
+    initAuthFlow();
 }
 
 /**
- * Abre el modal de reserva
+ * Inicializa el flujo de autenticación del usuario
+ */
+function initAuthFlow() {
+    document.getElementById('authButton')?.addEventListener('click', () => openAuthModal('login'));
+    document.getElementById('logoutHeaderBtn')?.addEventListener('click', handleHeaderLogout);
+    document.getElementById('loginTab')?.addEventListener('click', () => setAuthMode('login'));
+    document.getElementById('registerTab')?.addEventListener('click', () => setAuthMode('register'));
+    document.getElementById('closeAuthModal')?.addEventListener('click', closeAuthModal);
+    document.getElementById('cancelAuth')?.addEventListener('click', closeAuthModal);
+    document.getElementById('googleAuthBtn')?.addEventListener('click', handleGoogleAuth);
+    document.getElementById('authModal')?.querySelector('.modal-overlay')?.addEventListener('click', closeAuthModal);
+    document.getElementById('authForm')?.addEventListener('submit', handleAuthSubmit);
+
+    onAuthStateChanged(handleAuthStateChanged);
+}
+
+/**
+ * Abre el modal de reserva o pide login si no hay usuario
  */
 function openBookingModal(slot) {
+    const authUser = getCurrentUser();
+    if (!authUser) {
+        pendingBookingSlot = slot;
+        openAuthModal('login');
+        return;
+    }
+
     const modal = document.getElementById('bookingModal');
     const slotText = document.getElementById('modalSlotText');
     
@@ -39,6 +72,152 @@ function openBookingModal(slot) {
         modal.dataset.slotDate = slot.date;
         modal.dataset.slotTime = slot.time;
         modal.classList.remove('hidden');
+        prefillBookingForm();
+    }
+}
+
+/**
+ * Rellena el formulario con datos guardados del usuario
+ */
+function prefillBookingForm() {
+    if (!currentUserProfile) return;
+    const nombre = document.getElementById('nombre');
+    const telefono = document.getElementById('telefono');
+    const email = document.getElementById('email');
+
+    if (nombre && currentUserProfile.nombre) {
+        nombre.value = currentUserProfile.nombre;
+    }
+    if (telefono && currentUserProfile.telefono) {
+        telefono.value = currentUserProfile.telefono;
+    }
+    if (email && currentUserProfile.email) {
+        email.value = currentUserProfile.email;
+    }
+}
+
+function setAuthMode(mode) {
+    authMode = mode;
+    document.getElementById('loginTab')?.classList.toggle('active', mode === 'login');
+    document.getElementById('registerTab')?.classList.toggle('active', mode === 'register');
+    document.getElementById('authSubmit').textContent = mode === 'login' ? 'Ingresar' : 'Crear cuenta';
+    document.getElementById('authError')?.classList.add('hidden');
+}
+
+function openAuthModal(mode = 'login') {
+    setAuthMode(mode);
+    const modal = document.getElementById('authModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+    }
+}
+
+function closeAuthModal() {
+    const modal = document.getElementById('authModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    document.getElementById('authForm')?.reset();
+    document.getElementById('authError')?.classList.add('hidden');
+}
+
+async function handleAuthStateChanged(user) {
+    const statusEl = document.getElementById('userStatus');
+    const authEmailEl = document.getElementById('authEmailDisplay');
+    const authButton = document.getElementById('authButton');
+
+    if (user) {
+        authButton?.classList.add('hidden');
+        statusEl?.classList.remove('hidden');
+        if (authEmailEl) authEmailEl.textContent = `Bienvenido ${user.email}`;
+        currentUserProfile = await getUserProfile(user.uid);
+        if (!currentUserProfile) {
+            const profileData = {
+                email: user.email || '',
+                nombre: user.displayName || '',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            await saveUserProfile(user.uid, profileData);
+            currentUserProfile = await getUserProfile(user.uid);
+        }
+        if (pendingBookingSlot) {
+            openBookingModal(pendingBookingSlot);
+            pendingBookingSlot = null;
+        }
+    } else {
+        currentUserProfile = null;
+        authButton?.classList.remove('hidden');
+        statusEl?.classList.add('hidden');
+    }
+}
+
+async function handleHeaderLogout() {
+    await signOutUser();
+    showToast('Sesión cerrada. Para reservar, iniciá sesión de nuevo.');
+}
+
+async function handleAuthSubmit(e) {
+    e.preventDefault();
+    const email = document.getElementById('authEmail')?.value.trim();
+    const password = document.getElementById('authPassword')?.value;
+    const errorEl = document.getElementById('authError');
+
+    if (!email || !password) {
+        if (errorEl) {
+            errorEl.textContent = 'Completá email y contraseña.';
+            errorEl.classList.remove('hidden');
+        }
+        return;
+    }
+
+    try {
+        if (authMode === 'register') {
+            await registerUser(email, password);
+            showToast('Cuenta creada correctamente. Ya podés reservar.');
+        } else {
+            await loginUser(email, password);
+            showToast('Ingresaste correctamente. Ya podés reservar.');
+        }
+        closeAuthModal();
+    } catch (error) {
+        console.error('Error auth:', error);
+        let message = 'Error al procesar la solicitud.';
+        if (error.code === 'auth/email-already-in-use') {
+            message = 'El email ya está en uso.';
+        } else if (error.code === 'auth/invalid-email') {
+            message = 'El email no es válido.';
+        } else if (error.code === 'auth/weak-password') {
+            message = 'La contraseña debe tener al menos 6 caracteres.';
+        } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+            message = 'Email o contraseña incorrectos.';
+        }
+        if (errorEl) {
+            errorEl.textContent = message;
+            errorEl.classList.remove('hidden');
+        }
+    }
+}
+
+async function handleGoogleAuth() {
+    const errorEl = document.getElementById('authError');
+    if (errorEl) {
+        errorEl.classList.add('hidden');
+    }
+
+    try {
+        await signInWithGoogle();
+        showToast('Ingresaste con Google. Ya podés reservar.');
+        closeAuthModal();
+    } catch (error) {
+        console.error('Error Google auth:', error);
+        let message = 'No se pudo iniciar sesión con Google.';
+        if (error.code === 'auth/popup-closed-by-user') {
+            message = 'La ventana de Google se cerró antes de completar el ingreso.';
+        }
+        if (errorEl) {
+            errorEl.textContent = message;
+            errorEl.classList.remove('hidden');
+        }
     }
 }
 
@@ -70,12 +249,20 @@ async function handleBookingSubmit(e) {
         return;
     }
 
+    const authUser = getCurrentUser();
     const patientData = {
         nombre: form.nombre.value.trim(),
         telefono: form.telefono.value.trim(),
         email: form.email.value.trim(),
         motivo: form.motivo.value.trim()
     };
+
+    if (authUser) {
+        patientData.userId = authUser.uid;
+        if (!patientData.email && authUser.email) {
+            patientData.email = authUser.email;
+        }
+    }
 
     // Validaciones básicas
     if (!patientData.nombre || patientData.nombre.length < 2) {
@@ -98,6 +285,15 @@ async function handleBookingSubmit(e) {
         console.log('📝 Iniciando creación de appointment:', { slotDate, slotTime, patientData });
         const appointmentId = await createAppointment(slotDate, slotTime, patientData);
         console.log('✅ Appointment creado exitosamente:', appointmentId);
+
+        if (authUser) {
+            await saveUserProfile(authUser.uid, {
+                nombre: patientData.nombre,
+                telefono: patientData.telefono,
+                email: patientData.email || authUser.email
+            });
+            currentUserProfile = await getUserProfile(authUser.uid);
+        }
         
         // Generar mensaje de WhatsApp
         const whatsappMessage = generateWhatsAppMessage(patientData, slotDate, slotTime);
