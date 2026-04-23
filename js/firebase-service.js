@@ -679,9 +679,27 @@ async function getBookedSlotDoc(slotId) {
 }
 
 /**
- * Elimina un turno ocupado
+ * Elimina un turno ocupado y lo devuelve a disponibles
  */
 async function deleteBookedSlot(slotId) {
-    if (!bookedSlotsRef) throw new Error('Firebase no configurado');
-    await bookedSlotsRef.doc(slotId).delete();
+    if (!bookedSlotsRef || !availableSlotsRef) throw new Error('Firebase no configurado');
+    
+    try {
+        // Obtener el documento para extraer fecha y hora
+        const doc = await bookedSlotsRef.doc(slotId).get();
+        if (!doc.exists) {
+            throw new Error('Turno no encontrado');
+        }
+        
+        const { date, time } = doc.data();
+        
+        // Eliminar de bookedSlots
+        await bookedSlotsRef.doc(slotId).delete();
+        
+        // Crear en availableSlots para que otros pacientes puedan reservarlo
+        await createAvailableSlot(date, time);
+    } catch (error) {
+        console.error(`Error eliminando turno ${slotId}:`, error);
+        throw error;
+    }
 }
