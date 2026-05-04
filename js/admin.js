@@ -1,7 +1,7 @@
 /**
  * Voltron Lab - Panel de administración (v2)
  * Login, gestión de turnos (crear, eliminar, liberar, reagendar)
- * Con calendario de 10 días y operaciones en tiempo real
+ * Con calendario navegable por mes y operaciones en tiempo real
  */
 
 let unsubscribeAdminData = null;
@@ -9,6 +9,7 @@ let assignedPatientSingle = null;
 let assignedPatientMultiple = null;
 let assignedPatientSingleComment = null;
 let assignedPatientMultipleComment = null;
+let currentMonthView = new Date(); // Variable para rastrear el mes actual que se muestra
 
 document.addEventListener('DOMContentLoaded', () => {
     const ADMIN_EMAIL = 'voltronlab2@gmail.com';
@@ -54,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupRescheduleModal();
     setupAssignPatientModal();
     setupClassDetailsModal();
+    setupCalendarNavigation();
 });
 
 
@@ -166,7 +168,7 @@ async function loadAdminData() {
 }
 
 /**
- * Renderiza el calendario de los próximos 10 días con turnos ocupados
+ * Renderiza el calendario del mes seleccionado con turnos ocupados
  */
 function renderCalendar(bookedSlots, appointments) {
     const container = document.getElementById('calendarView');
@@ -181,13 +183,15 @@ function renderCalendar(bookedSlots, appointments) {
         });
     }
 
-    // Obtener todos los días desde hoy hasta fin del mes siguiente
-    const today = new Date();
-    const endOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+    // Obtener el primer y último día del mes seleccionado
+    const year = currentMonthView.getFullYear();
+    const month = currentMonthView.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
     
     const days = [];
-    const currentDate = new Date(today);
-    while (currentDate <= endOfNextMonth) {
+    const currentDate = new Date(firstDay);
+    while (currentDate <= lastDay) {
         days.push(new Date(currentDate));
         currentDate.setDate(currentDate.getDate() + 1);
     }
@@ -201,18 +205,18 @@ function renderCalendar(bookedSlots, appointments) {
         });
     }
 
-    if (!bookedSlots || bookedSlots.length === 0) {
-        container.innerHTML = '<p class="empty-state">No hay turnos ocupados en el mes actual y siguiente.</p>';
-        return;
-    }
+    // Actualizar el título del mes
+    updateMonthDisplay();
 
     let html = '<div class="calendar-grid">';
     
+    let hasSlots = false;
     days.forEach(date => {
         const dateStr = formatDateId(date);
         const daySlots = slotsByDate[dateStr] || [];
 
         if (daySlots.length > 0) {
+            hasSlots = true;
             const dateFormatted = formatDateDisplay(date);
 
             html += `<div class="calendar-day">
@@ -263,6 +267,10 @@ function renderCalendar(bookedSlots, appointments) {
             html += `</div></div>`;
         }
     });
+
+    if (!hasSlots) {
+        html += '<p class="empty-state">No hay turnos ocupados en este mes.</p>';
+    }
 
     html += '</div>';
     container.innerHTML = html;
@@ -1099,5 +1107,42 @@ function showAdminToast(message) {
             toast.classList.remove('visible');
             setTimeout(() => toast.classList.add('hidden'), 300);
         }, 3000);
+    }
+}
+
+/**
+ * Configura la navegación del calendario por meses
+ */
+function setupCalendarNavigation() {
+    const prevBtn = document.getElementById('prevMonthBtn');
+    const nextBtn = document.getElementById('nextMonthBtn');
+
+    if (prevBtn) {
+        prevBtn.addEventListener('click', () => {
+            currentMonthView.setMonth(currentMonthView.getMonth() - 1);
+            loadAdminData();
+        });
+    }
+
+    if (nextBtn) {
+        nextBtn.addEventListener('click', () => {
+            currentMonthView.setMonth(currentMonthView.getMonth() + 1);
+            loadAdminData();
+        });
+    }
+}
+
+/**
+ * Actualiza el título del mes en la pantalla
+ */
+function updateMonthDisplay() {
+    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const monthDisplay = document.getElementById('currentMonthDisplay');
+    
+    if (monthDisplay) {
+        const monthName = monthNames[currentMonthView.getMonth()];
+        const year = currentMonthView.getFullYear();
+        monthDisplay.textContent = `${monthName} ${year}`;
     }
 }
